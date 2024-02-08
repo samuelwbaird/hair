@@ -1,0 +1,34 @@
+<html>
+<head>
+	<title>hair.js TODO list</title>
+	<link href="css/style.css" rel="stylesheet">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div id="app">
+</div>
+<script type="module" charset="UTF-8">
+	import * as h from '../hair.js';
+	
+	import TodoModel from './js/model.js';
+	import app from './js/view.js';
+	
+	// create the data model for the app
+	const model = new TodoModel('My super important TODO list');
+	model.addItem('Eat beans');
+	model.addItem('Drink coffee');
+	
+	// -- render the app in place ---------------------------------
+	const parent = document.getElementById('app');
+	const context = h.render(parent, model, app);
+	
+	// the app mostly relies on signals to re-render changes, but we can also
+	// manually update, or signal, if changes to the model arrive from the network
+	
+	// what does an update loop look like
+	// onNetworkState = () => { context.update(state); };
+	// onFrame = () => { context.update(state); }; 
+		
+</script>
+</body>
+</html>
