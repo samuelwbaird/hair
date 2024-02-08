@@ -1,5 +1,7 @@
+// reference the hair library to access the provided functions to generate elements
 import * as h from '../../hair.js';
 
+/** top level view, render the app as a title, list, and "add new" component */
 export default function app(model) {
 	return [
 		h.h1(model.name),
@@ -14,6 +16,7 @@ export default function app(model) {
 	];
 }
 
+/** small component, executed inline to render the list count */
 function itemCount(count) {
 	if (count == 0) {
 		return h.p('Add some items to your TODO list');
@@ -24,9 +27,10 @@ function itemCount(count) {
 	}
 }
 
+/** component to render each item in the list in its own view */
 function displayItem(model, item) {
 	return h.div([
-		h.input('Completed', { type: 'checkbox', _id: 'completed' }, [
+		h.input({ type: 'checkbox', _id: 'completed' }, [
 			h.listen('change', (context, element, e) => { 
 				if (element.value) {
 					item.setCompleted();
@@ -38,6 +42,7 @@ function displayItem(model, item) {
 	]);
 }
 
+/** component to render the UI to add new items */
 function addItem(model) {
 	return h.div([
 		h.input({ _id: 'txt_input' }),

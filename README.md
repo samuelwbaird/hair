@@ -1,9 +1,7 @@
 # hair.js
 A Javascript library for creation and update of DOM elements via component  function composition (but not purely FRP style)
 
-Taking a few of the things I think people like about FRP libraries and m
-
-Less concerned with taking a functional reactive isolating component state from the DOM, and more c with responding to a separate model/world state
+Taking a few of the things I think people like about FRP libraries and removing others. Less concerned with taking a functional reactive isolating component state from the DOM, and more with responding to a separate model/world state. Some of these choices make more sense from the point of view of games and simulations, and long lived state, rather than more transactional websites with fresh queries per page.
 
 ## Goals
 

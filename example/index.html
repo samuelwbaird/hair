@@ -8,8 +8,10 @@
 <div id="app">
 </div>
 <script type="module" charset="UTF-8">
-	import * as h from '../hair.js';
+	// use the library
+	import * as hair from '../hair.js';
 	
+	// this simple example broken into a model class and view functions
 	import TodoModel from './js/model.js';
 	import app from './js/view.js';
 	
@@ -20,15 +22,18 @@
 	
 	// -- render the app in place ---------------------------------
 	const parent = document.getElementById('app');
-	const context = h.render(parent, model, app);
+	const context = hair.render(parent, model, app);
 	
-	// the app mostly relies on signals to re-render changes, but we can also
-	// manually update, or signal, if changes to the model arrive from the network
+	// the app relies on the simple global watch/signal mechanism to re-render updates to the model
+	// we can also trigger updates to the model outside of user interaction, for example, this timer pretending we're getting updates from the network
+	let count = 0;
+	setInterval(() => {
+		model.addItem('New item from the network ' + (++count));
+	}, 15 * 1000);
 	
-	// what does an update loop look like
-	// onNetworkState = () => { context.update(state); };
-	// onFrame = () => { context.update(state); }; 
-		
+	// other updates could be requested directly using the context object that as created
+	// onNetworkState = () => { context.update(model); };
+	// onFrame = () => { context.update(model); }; 		
 </script>
 </body>
 </html>
