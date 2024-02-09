@@ -16,7 +16,7 @@
 	import app from './js/view.js';
 	
 	// create the data model for the app
-	const model = new TodoModel('My super important TODO list');
+	const model = new TodoModel('Important TODO list');
 	model.addItem('Eat beans');
 	model.addItem('Drink coffee');
 	
@@ -24,12 +24,23 @@
 	const parent = document.getElementById('app');
 	const context = hair.render(parent, model, app);
 	
+	
+	
+	// -- additional example code to exercise the app -------------
+	
 	// the app relies on the simple global watch/signal mechanism to re-render updates to the model
-	// we can also trigger updates to the model outside of user interaction, for example, this timer pretending we're getting updates from the network
+	// we can also trigger updates to the model outside of user interaction
+	// for example, this timer pretending we're getting updates from the network
 	let count = 0;
 	setInterval(() => {
 		model.addItem('New item from the network ' + (++count));
 	}, 15 * 1000);
+	
+	// we can use hair's central timer (which runs requestAnimationFrame only around due times on demand)
+	const UI_FEEDBACK_PHASE = 5;
+	hair.delay(5, () => {
+		console.log('delayed action, include in requested phase at the appropriate frame');
+	}, UI_FEEDBACK_PHASE, model);
 	
 	// other updates could be requested directly using the context object that as created
 	// onNetworkState = () => { context.update(model); };

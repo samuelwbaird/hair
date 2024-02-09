@@ -72,6 +72,8 @@ Done
 
  * Determining the basic approach, include the interface for creating elements and context object related to DOM instantian
  * First pass basic recursive render 
+ * A centrally managed frame timer to request delayed frame updates in a consolidated manner
+ * A globally available signal to trigger re-render on updates to model/state object
 
 In progress
 
@@ -82,8 +84,6 @@ In progress
  
 To do
 
- * A globally available signal to trigger re-render on updates to model/state object
- * A centrally managed frame timer to request delayed frame updates in a consolidated manner
  * DOM updates without re-render
  * List specific render handling
  * Dispose cycle through context tree

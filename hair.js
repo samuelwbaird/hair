@@ -3,10 +3,10 @@
 // top level request to render state to a parent using a component
 export function render(parent, state, component) {
 	// create a context (attached to this parent)
-	const context = new DOMContext(null, parent, state, component);
+	const context = new DOMContext(null, parent, component);
 
 	// recursively expand the component in element specs
-	innerRender(context, parent, state, component);
+	context.render(state);
 
 	// mount events
 	context.dispatch('onMount');
@@ -125,21 +125,95 @@ class ListenSpecification extends ComponentSpecification {
 
 
 // -- Context Objects ------------------------------------
-// map the instantiated DOM objects to the state and components that created them
+// map the instantiated DOM objects to the components that created them
 // helping to support events, callbacks, lifecycle and updates
 
 // the context for a component having been rendered to the DOM
 class DOMContext {
-	constructor (contextParent, domParent, state, component) {
-		this.state = state;
+	
+	// parentContext, parentDOMElement, component
+	
+	constructor (contextParent, domParent, component) {
+		this.contextParent = contextParent;
+		this.domParent = domParent;
 		this.component = component;
+	}
+	
+	render (state) {
+		this.clear();
+		this.apply(this.domParent, state, this.component);
+		
+		// if not the current state then....
 		watch(state, () => {
 			console.log('state was signaled');
+			// _consolidatedSignals (implement on the context, not here)
 		}, this);
+		
 	}
 	
 	update (state) {
+		this.apply(parent, state, component);
+	}
+	
+	clear () {
 		
+	}
+	
+	// recursive process to expand the components and apply them to the DOM
+	apply (parent, state, component) {
+		if (typeof component === 'string') {
+			parent.appendChild(document.createTextNode(component));
+
+		} else if (Array.isArray(component)) {
+			for (const c of component) {
+				this.apply(parent, state, c);
+			}
+
+		} else if (component instanceof ElementSpecification) {
+			// make the new element
+			const element = document.createElement(component.type);
+			parent.appendChild(element);
+			// apply the properties of this element
+			if (component.properties) {
+				for (const [key, value] of Object.entries(component.properties)) {
+					// check for special purpose property handlers
+					const handler = propertyHandlers[key];
+					if (handler) {
+						handler(this, element, key, value);
+					} else {
+						// default handling
+						element[key] = value;
+					}
+				}
+			}
+			// add the children of this element
+			this.apply(element, state, component.children);
+
+		} else if (component instanceof ComposeSpecification) {
+			// compose either a list or sub component
+			if (Array.isArray(component.state)) {
+				const listContext = new DOMListContext(this, parent, component.component);
+				for (const item of component.state) {
+					const subContext = new DOMContext(listContext, parent, component.component);
+					subContext.render(item);
+				}
+			} else {
+				const subContext = new DOMContext(this, parent, component.component);
+				subContext.render(component.state);
+			}
+		
+		} else if (component instanceof ListenSpecification) {
+			// not implemented yet
+		
+		} else if (typeof component === 'function') {
+			this.apply(parent, state, component(state));
+
+		} else if (component == null) {
+			// we can ignore
+
+		} else {
+			throw new Error('unhandled component type ' + (typeof item));
+		}
 	}
 	
 	dispatch (event, data) {
@@ -147,13 +221,13 @@ class DOMContext {
 	}
 	
 	dispose () {
-		
+		this.clear();
 	}
 }
 
 class DOMListContext extends DOMContext {
-	constructor (contextParent, domParent, state, component) {
-		super(contextParent, domParent, state, component);
+	constructor (contextParent, domParent, component) {
+		super(contextParent, domParent, component);
 	}
 
 	// specialist list version of update
@@ -183,63 +257,6 @@ function applyClasses(context, element, key, value) {
 function applyMerged(context, element, key, value) {
 }
 
-// recursive process to expand the components and apply them to the DOM
-function innerRender(context, parent, state, component) {
-	if (typeof component === 'string') {
-		parent.appendChild(document.createTextNode(component));
-
-	} else if (Array.isArray(component)) {
-		for (const c of component) {
-			innerRender(context, parent, state, c);
-		}
-
-	} else if (component instanceof ElementSpecification) {
-		// make the new element
-		const element = document.createElement(component.type);
-		parent.appendChild(element);
-		// apply the properties of this element
-		if (component.properties) {
-			for (const [key, value] of Object.entries(component.properties)) {
-				// check for special purpose property handlers
-				const handler = propertyHandlers[key];
-				if (handler) {
-					handler(context, element, key, value);
-				} else {
-					// default handling
-					element[key] = value;
-				}
-			}
-		}
-		// add the children of this element
-		innerRender(context, element, state, component.children);
-
-	} else if (component instanceof ComposeSpecification) {
-		// compose either a list or sub component
-		if (Array.isArray(component.state)) {
-			const listContext = new DOMListContext(context, parent, component.state, component.component);
-			for (const item of component.state) {
-				const subContext = new DOMContext(listContext, parent, item, component.component);
-				innerRender(subContext, parent, item, component.component);
-			}
-		} else {
-			const subContext = new DOMContext(context, parent, component.state, component.component);
-			innerRender(subContext, parent, component.state, component.component);
-		}
-		
-	} else if (component instanceof ListenSpecification) {
-		// not implemented yet
-		
-	} else if (typeof component === 'function') {
-		innerRender(context, parent, state, component(state));
-
-	} else if (component == null) {
-		// we can ignore
-
-	} else {
-		throw new Error('unhandled component type ' + (typeof item));
-	}
-}
-
 
 // -- watch / signal ---------------------------------------------
 // a global weakly linked signal/watch system
@@ -267,13 +284,15 @@ export function watch(object, action, owner) {
 }
 
 export function signal(object, ...args) {
-	if (!watchMap.has(object)) {
+	if (!watchMap.has(object) || isObjectDisposed(object)) {
 		return;
 	}
 	
 	const list = watchMap.get(object);
 	for (const watcher of list) {
-		watcher.action(...args);
+		if (!isObjectDisposed(watcher.owner)) {
+			watcher.action(...args);
+		}
 	}
 }
 
@@ -293,8 +312,6 @@ export function unwatch(owner) {
 		}
 	}
 }
-
-// _consolidatedSignals (implement on the context, not here)
 
 
 // -- delay / frame ---------------------------------------
@@ -328,33 +345,83 @@ export function onNextFrame(action, phase, owner) {
 	requestFrameTimer();
 }
 
+export function cancel(owner) {
+	let i = 0;
+	while (i < delayedActions.length) {
+		if (delayedActions[i].owner == owner) {
+			delayedActions.splice(i, 1);
+		} else {
+			i++;
+		}
+	}
+}
+
+const READY_TIME = 100;
 let frameIsRequested = false;
-let longDelay = null;
+let longDelayTimeout = false;
 
 function requestFrameTimer() {
-	if (frameIsRequested) {
+	if (frameIsRequested || delayedActions.length == 0) {
 		return;
 	}
 	
 	// work out if a long delay or short delay is needed next
-
-}
-
-function actionFrame() {
+	const next = delayedActions[delayedActions.length - 1].time;
+	const now = Date.now();
 	
+	// cancel any current timeout
+	if (longDelayTimeout) {
+		clearTimeout(longDelayTimeout);
+		longDelayTimeout = false;
+	}
+	
+	// if the next action is soon then request an animation frame
+	if (next - now < READY_TIME) {
+		frameIsRequested = true;
+		requestAnimationFrame(_animationFrame);
+		return;
+	}
+	
+	// if the next action is not soon then request a timeout closer to the time
+	longDelayTimeout = setTimeout(requestFrameTimer, (next - now) - READY_TIME);
 }
 
-
+function _animationFrame() {
+	// set aside all actions now due
+	const now = Date.now();
+	const toBeActioned = [];
+	while (delayedActions.length > 0 && delayedActions[delayedActions.length - 1].time <= now) {
+		toBeActioned.push(delayedActions.pop());
+	}
+	
+	// make sure the next frame is correctly queued if required
+	frameIsRequested = false;
+	requestFrameTimer();
+	
+	// ordered by phase to allow more consistent dispatch ordering
+	toBeActioned.sort((a1, a2) => {
+		return a1.phase - a2.phase;
+	});
+	// dispatch all actions (ignoring disposed owners)
+	for (const delayed of toBeActioned) {
+		if (!isObjectDisposed(delayed.owner)) {
+			delayed.action();
+		}
+	}
+}
 
 // -- dispose / isDisposed ---------------------------------------
 // a globally available system to mark any object as disposed
 
 const disposeSet = new WeakSet();
 
-export function dispose(obj) {
+export function markObjectAsDisposed(obj) {
 	disposeSet.set(obj);
 }
 
-export function isDisposed(obj) {
+export function isObjectDisposed(obj) {
+	if (!obj) {
+		return false;
+	}
 	return disposeSet.has(obj);
 }
