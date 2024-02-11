@@ -5,3 +5,7 @@ body{
     max-width: 960px;
     padding: 30px;
 }
+
+span.txt-todo {
+	min-width: 320px;
+}

@@ -27,23 +27,14 @@
 	const parent = document.getElementById('app');
 	const context = hair.render(parent, model, app);
 	
-	
-	
-	// -- additional artificial example code to exercise the app -------------
-	
 	// the app relies on the simple global watch/signal mechanism to re-render updates to the model
-	// we can also trigger updates to the model outside of user interaction
-	// for example, this timer pretending we're getting updates from the network
-	let count = 0;
-	setInterval(() => {
-		// model.addItem('New item from the network ' + (++count));
-	}, 15 * 1000);
+	// from this point the view will be re-rendered if the state objects signal they have changed (eg. through model update methods)
 	
-	// we can use hair's central timer (which runs requestAnimationFrame only around due times on demand)
-	const UI_FEEDBACK_PHASE = 5;
-	hair.delay(5, () => {
-		console.log('delayed action, include in requested phase at the appropriate frame');
-	}, UI_FEEDBACK_PHASE, model);
+	// we can also use the context object to update view for other reasons
+	// this is an artifical example using a timer (hair's shared central timer) to pretend new data has come in from the network
+	hair.delay(10, () => {
+		model.addItem('Automated reminder: feed the cat');
+	});
 	
 	// other updates could be requested directly using the context object that as created
 	// onNetworkState = () => { context.update(model); };

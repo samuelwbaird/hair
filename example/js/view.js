@@ -6,7 +6,7 @@ export default function app(model) {
 	return [
 		h.h1(model.name),
 		h.div([
-			h.ol({ _id: 'list' }, h.compose(model.items, (item) => displayItem(model, item))),
+			h.ol(h.compose(model.items, (item) => displayItem(model, item))),
 			itemCount(model.items.length),
 		]),
 		h.div([
@@ -30,15 +30,15 @@ function itemCount(count) {
 /** component to render each item in the list in its own view */
 function displayItem(model, item) {
 	return h.div([
-		h.input({ type: 'checkbox', _id: 'completed', checked: item.completed, disabled: item.completed }, [
-			h.listen('change', (context, element, e) => { 
+		h.input({ type: 'checkbox', checked: item.completed, disabled: item.completed }, [
+			h.listen('change', (context, element) => { 
 				if (element.checked) {
 					item.setCompleted();
 				}
 			}),
 		]),
-		h.span(item.text, { style: { ['textDecoration']: (item.completed ? 'line-through' : '') }}),
-		h.button('Delete', { class: 'delete' }, h.listen('click', () => { model.removeItem(item); })),
+		h.span(item.text, { class: 'txt-todo', style: { textDecoration: (item.completed ? 'line-through' : '') }}),
+		h.button('Delete', { class: 'btn-delete' }, h.listen('click', () => { model.removeItem(item); })),
 	]);
 }
 
@@ -46,6 +46,10 @@ function displayItem(model, item) {
 function addItem(model) {
 	return h.div([
 		h.input({ _id: 'txt_input' }),
-		h.button('Add', { class: 'add' }, h.listen('click', (context, element) => { model.addItem(context.txt_input.value); context.txt_input.value = ''; })),
+		h.button('Add', { class: 'btn-add' }, h.listen('click', (context, element) => {
+			// use a reference to a another element within this same context, using the special _id property
+			model.addItem(context.txt_input.value);
+			context.txt_input.value = '';
+		})),
 	]);
 }
