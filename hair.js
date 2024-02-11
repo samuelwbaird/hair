@@ -41,8 +41,9 @@ export function element(type, arg1, arg2, arg3) {
 }
 
 // mark a point within the render tree that is composed with its own render context or list
-export function compose(state, component) {
-	return new ComposeSpecification(state, component);
+// set a reuseKey object or string, to use that to make sure the same composed context is reused for the same purpose
+export function compose(state, component, reuseKey) {
+	return new ComposeSpecification(state, component, reuseKey);
 }
 
 // add an event listener as a child of instantiated elements
@@ -120,10 +121,11 @@ class ElementSpecification extends ComponentSpecification {
 
 // a data object that specifies a sub-render (object or list) to be composed at a point in the render tree
 class ComposeSpecification extends ComponentSpecification {
-	constructor (state, component) {
+	constructor (state, component, reuseKey) {
 		super();
 		this.state = state;
 		this.component = component;
+		this.reuseKey = this.reuseKey ?? this.state;
 	}
 }
 
@@ -172,7 +174,7 @@ class RenderContext {
 
 		// created elements
 		this.attachments = [];
-		
+
 		// consolidate updates
 		this.updateIsRequested = false;
 	}
@@ -212,14 +214,14 @@ class RenderContext {
 			onNextFrame(() => { this.consolidatedUpdateFromSignals(); }, TIMER_PHASE_MODEL_UPDATES, this);
 		}, this);
 	}
-	
+
 	consolidatedUpdateFromSignals () {
 		if (this.updateIsRequested) {
 			this.update(this.updateIsRequested);
 		}
 	}
 
-	clear () {		
+	clear () {
 		// remove all attachments in reverse order
 		let i = this.attachments.length;
 		while (i > 0) {
@@ -243,7 +245,7 @@ class RenderContext {
 		if (Array.isArray(state)) {
 			// special case list handling... map list items and their component to the created element
 			for (const item of state) {
-				const subContext = renderPhase.findOrCreateListItemSubContext(item, this, parent, component);
+				const subContext = renderPhase.findOrCreateListItemSubContext(this, parent, component, item);
 				subContext.update(item);
 			}
 			return;
@@ -279,12 +281,10 @@ class RenderContext {
 
 		} else if (component instanceof ComposeSpecification) {
 			// compose either a list or sub component
-			// TODO: can the compose specification object be a key used here to determine re-use
-			const subContext = renderPhase.findOrCreateSubContext(this, parent, component.component);
+			const subContext = renderPhase.findOrCreateSubContext(this, parent, component.component, component.reuseKey);
 			subContext.update(component.state);
 
 		} else if (component instanceof ListenSpecification) {
-			// TODO: can the listen specification object be a key used here to determine re-use
 			renderPhase.findOrCreateDOMListener(this, parent, component.event, component.listener);
 
 		} else if (typeof component === 'function') {
@@ -299,6 +299,11 @@ class RenderContext {
 	}
 
 	commit (renderPhase) {
+		// console.log('Render: ' + renderPhase.newAttachments.length + ' new attachments')
+		// console.log('Render: ' + renderPhase.priorAttachments.length + ' removed attachments')
+		// console.log('Render: ' + renderPhase.attachments.length + ' current attachments')
+		// console.log('------')
+
 		// remove prior attachments
 		let i = renderPhase.priorAttachments.length;
 		while (i > 0) {
@@ -335,25 +340,27 @@ class RenderPhase {
 		this.newAttachments = [];
 	}
 
-	findOrCreateSubContext (context, parent, component) {
-		const keys = [ parent, component ];
+	findOrCreateSubContext (context, parent, component, keyObject) {
+		const keys = [ parent, keyObject ];
 		const existing = this.find(SubContextAttachment, keys);
 		if (existing) {
+			existing.component = component;
 			return existing.context;
 		}
-		
+
 		const sub = context.derive(parent, component);
 		this.addAttachment(new SubContextAttachment(sub), keys)
 		return sub;
 	}
-	
-	findOrCreateListItemSubContext (item, context, parent, component) {
-		const keys = [ item, parent, component ];
+
+	findOrCreateListItemSubContext (context, parent, component, keyObject) {
+		const keys = [ parent, keyObject ];
 		const existing = this.find(SubContextAttachment, keys);
 		if (existing) {
+			existing.component = component;
 			return existing.context;
 		}
-		
+
 		const sub = context.derive(parent, component);
 		this.addAttachment(new SubContextAttachment(sub), keys)
 		return sub;
@@ -387,9 +394,10 @@ class RenderPhase {
 	}
 
 	findOrCreateDOMListener (context, parent, event, listener) {
-		const keys = [ context, parent, event, listener ];
+		const keys = [ context, parent, event ];
 		const existing = this.find(DOMListenerAttachment, keys);
 		if (existing) {
+			existing.listener = listener;
 			return existing;
 		}
 
@@ -428,7 +436,7 @@ class RenderPhase {
 }
 
 class RenderAttachment {
-	// be prepared to let go of your attachments	
+	// be prepared to let go of your attachments
 	attach () {}
 	remove () {}
 }
@@ -471,15 +479,16 @@ class DOMListenerAttachment extends RenderAttachment {
 		super();
 		this.element = element;
 		this.eventName = eventName;
-		this.handler = (evt) => { handler(context, element, evt); }
+		this.handler = handler;
+		this.wrappedHandler = (evt) => { this.handler(context, element, evt); }
 	}
 
 	attach () {
-		this.element.addEventListener(this.eventName, this.handler);
+		this.element.addEventListener(this.eventName, this.wrappedHandler);
 	}
 
 	remove () {
-		this.element.removeEventListener(this.eventName, this.handler);
+		this.element.removeEventListener(this.eventName, this.wrappedHandler);
 	}
 }
 
@@ -504,6 +513,22 @@ function applyContextIDProperty(context, element, key, value) {
 }
 
 function applyClassList(context, element, key, value) {
+	// allow either a single class or array of class names
+	if (!Array.isArray(value)) {
+		value = [value];
+	}
+	const newNames = new Set();
+	for (const className of value) {
+		newNames.add(className);
+		if (!element.classList.contains(className)) {
+			element.classList.add(className);
+		}
+	}
+	for (const className of element.classList) {
+		if (!newNames.has(className)) {
+			element.classList.remove(value);
+		}
+	}
 }
 
 function applyMergedProperties(context, element, key, value) {
@@ -585,8 +610,8 @@ export function delay(seconds, action, phase, owner) {
 		owner: owner,
 	});
 	// sort the upcoming actions to the end of the list
-	delayedActions.sort((a1, a2) => {
-		return a2.time - a1.time;
+	delayedActions.sort((a, b) => {
+		return a.time - b.time;
 	});
 	requestFrameTimer();
 }
@@ -656,8 +681,8 @@ function _animationFrame() {
 	requestFrameTimer();
 
 	// ordered by phase to allow more consistent dispatch ordering
-	toBeActioned.sort((a1, a2) => {
-		return a1.phase - a2.phase;
+	toBeActioned.sort((a, b) => {
+		return a.phase - b.phase;
 	});
 	// dispatch all actions (ignoring disposed owners)
 	for (const delayed of toBeActioned) {

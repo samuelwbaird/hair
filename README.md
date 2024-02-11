@@ -77,7 +77,7 @@ Open the example folder in your browser
 
 During instantiation or update of DOM elements, recognised property names are given special treatment when applied to the element.
 
- * __id, this property sets a reference to the element on the context object, eg. __id = "textbox" => sets a reference to this element at context.textbox
+ * \_id, this property sets a reference to the element on the context object, eg. \_id = "textbox" => sets a reference to this element at context.textbox
  * class, this property when given a name, or an array of names, will update the classList of the element to match
  * style, when an object value is applied to this property, the values of that object will be merged into the element style object, rather than replacing it
 
@@ -95,18 +95,18 @@ Done
  * Initial rendering of HTML elements from a component tree
  * An approach to event listening and access to DOM elements
  * DOM updates without a full re-render
+ * Property handling for different properties that need special treatment
+ * Consider supplying an explicit list of dependency key objects when assigning callbacks (or more things?) to explicitly determine when reuse is appropriate
 
 In progress
 
  * A typical TODO list as a working example
- * Property handling for different properties that need special treatment
+ * Ensure correct ordering of DOM elements when partially re-using content
+ * Listening to component lifecycle events or arbitrary event dispatch
  
 To do
 
- * Consider supplying an explicit list of dependency key objects when assigning callbacks (or more things?) to explicitly determine when reuse is appropriate
- * Ensure correct ordering of DOM elements when partially re-using content
  * Information sharing through the context tree
- * Listening to component lifecycle events or arbitrary event dispatch
  * More efficient handling of long lists or large components
  * Dispose cycle through context tree
  * Add JSDoc markup throughout
