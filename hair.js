@@ -50,10 +50,10 @@ export function listen(event, listener) {
 	return new ListenSpecification(event, listener, false);
 }
 
-// add an event listener as a child of instantiated elements that fires at most once
-export function once(event, listener) {
-	return new ListenSpecification(event, listener, true);
-}
+// attach, detach, update - re-use references to the same function object to prevent extra updates
+// onAttach
+// onRemove
+// onUpdate
 
 // as a convenience provide built in element spec generators for common elements
 export function elementFactory(type) {
@@ -129,11 +129,10 @@ class ComposeSpecification extends ComponentSpecification {
 
 // a data object that specifies an event listener to be attached to instantiated DOM objects
 class ListenSpecification extends ComponentSpecification {
-	constructor (event, listener, once) {
+	constructor (event, listener) {
 		super();
 		this.event = event;
 		this.listener = listener;
-		this.once = once;
 	}
 }
 
@@ -161,6 +160,8 @@ class ListenSpecification extends ComponentSpecification {
 // RenderContext
 // RenderPhase
 
+const TIMER_PHASE_MODEL_UPDATES = 1;
+
 // the context for a component having been rendered to the DOM
 class RenderContext {
 
@@ -171,12 +172,14 @@ class RenderContext {
 
 		// created elements
 		this.attachments = [];
+		
+		// consolidate updates
+		this.updateIsRequested = false;
 	}
 
 	// derive a child context
-	derive (parent, component) {
-		const child = new RenderContext(parent, component)
-		this.attachments.push(new SubContextAttachment(child));
+	derive (parentDOMElement, component) {
+		const child = new RenderContext(parentDOMElement, component);
 		return child;
 	}
 
@@ -194,34 +197,37 @@ class RenderContext {
 			return;
 		}
 
+		// unwatch signals/updates
 		removeWatcher(this);
+		this.updateIsRequested = false;
 
+		// begin middle and end of render
 		const renderPhase = new RenderPhase(this);
 		this.#apply(this.parentDOMElement, state, this.component, renderPhase);
 		this.commit(renderPhase);
 
+		// allow signals to trigger an update
 		watch(state, () => {
-			console.log('state was signaled');
-			// _consolidatedSignals (implement on the context, not here)
-			this.update(state);
+			this.updateIsRequested = state;
+			onNextFrame(() => { this.consolidatedUpdateFromSignals(); }, TIMER_PHASE_MODEL_UPDATES, this);
 		}, this);
-
-
-		// mount events
-		// context.dispatch('onMount');
-		// context.dispatch('onUpdate');
+	}
+	
+	consolidatedUpdateFromSignals () {
+		if (this.updateIsRequested) {
+			this.update(this.updateIsRequested);
+		}
 	}
 
-	clear () {
+	clear () {		
 		// remove all attachments in reverse order
-		// elements, subcontexts, listeners etc.
-
 		let i = this.attachments.length;
 		while (i > 0) {
 			this.attachments[--i].remove();
 		}
 		this.attachments = [];
 
+		// unwatch signals/updates
 		removeWatcher(this);
 	}
 
@@ -235,8 +241,9 @@ class RenderContext {
 	// recursive process to expand the components and apply them to the DOM
 	#apply (parent, state, component, renderPhase) {
 		if (Array.isArray(state)) {
+			// special case list handling... map list items and their component to the created element
 			for (const item of state) {
-				const subContext = this.derive(parent, component);
+				const subContext = renderPhase.findOrCreateListItemSubContext(item, this, parent, component);
 				subContext.update(item);
 			}
 			return;
@@ -272,10 +279,12 @@ class RenderContext {
 
 		} else if (component instanceof ComposeSpecification) {
 			// compose either a list or sub component
-			const subContext = this.derive(parent, component.component);
+			// TODO: can the compose specification object be a key used here to determine re-use
+			const subContext = renderPhase.findOrCreateSubContext(this, parent, component.component);
 			subContext.update(component.state);
 
 		} else if (component instanceof ListenSpecification) {
+			// TODO: can the listen specification object be a key used here to determine re-use
 			renderPhase.findOrCreateDOMListener(this, parent, component.event, component.listener);
 
 		} else if (typeof component === 'function') {
@@ -293,7 +302,8 @@ class RenderContext {
 		// remove prior attachments
 		let i = renderPhase.priorAttachments.length;
 		while (i > 0) {
-			renderPhase.priorAttachments[--i].remove();
+			i--;
+			renderPhase.priorAttachments[i].remove();
 		}
 		// these are out new attachments
 		this.attachments = renderPhase.attachments;
@@ -321,15 +331,35 @@ class RenderPhase {
 		// attachments created or in use this render
 		this.attachments = [];
 
-		// new attachments that need to be signalled "once" on creation
+		// new attachments that need to be signalled on creation
 		this.newAttachments = [];
 	}
 
-	findOrCreateSubContext(state) {
-
+	findOrCreateSubContext (context, parent, component) {
+		const keys = [ parent, component ];
+		const existing = this.find(SubContextAttachment, keys);
+		if (existing) {
+			return existing.context;
+		}
+		
+		const sub = context.derive(parent, component);
+		this.addAttachment(new SubContextAttachment(sub), keys)
+		return sub;
+	}
+	
+	findOrCreateListItemSubContext (item, context, parent, component) {
+		const keys = [ item, parent, component ];
+		const existing = this.find(SubContextAttachment, keys);
+		if (existing) {
+			return existing.context;
+		}
+		
+		const sub = context.derive(parent, component);
+		this.addAttachment(new SubContextAttachment(sub), keys)
+		return sub;
 	}
 
-	findOrCreateElement(type, parent, state) {
+	findOrCreateElement (type, parent, state) {
 		const keys = [ type, parent, state ];
 		const existing = this.find(ElementAttachment, keys);
 		if (existing) {
@@ -342,7 +372,7 @@ class RenderPhase {
 		return element;
 	}
 
-	findCreateOrUpdateText(parent, text) {
+	findCreateOrUpdateText (parent, text) {
 		const keys = [ parent ];
 		const existing = this.find(TextAttachment, keys);
 		if (existing) {
@@ -356,7 +386,7 @@ class RenderPhase {
 		return textNode;
 	}
 
-	findOrCreateDOMListener(context, parent, event, listener) {
+	findOrCreateDOMListener (context, parent, event, listener) {
 		const keys = [ context, parent, event, listener ];
 		const existing = this.find(DOMListenerAttachment, keys);
 		if (existing) {
@@ -366,14 +396,17 @@ class RenderPhase {
 		return this.addAttachment(new DOMListenerAttachment(context, parent, event, listener), keys);
 	}
 
-	find(attachmentType, keys) {
+	find (attachmentType, keys) {
+		// NOTE: this linear search might be very inefficient on large components or long lists
+		// could replace with some kind of multi-key dictionary if needed
 		let i = 0;
-		while (i < this.priorAttachments.length) {
+		search: while (i < this.priorAttachments.length) {
 			const attachment = this.priorAttachments[i];
 			if (attachment instanceof attachmentType) {
 				for (let j = 0; j < keys.length; j++) {
 					if (keys[j] != attachment.keys[j]) {
-						i++; continue;
+						i++;
+						continue search;
 					}
 				}
 				this.priorAttachments.splice(i, 1);
@@ -385,7 +418,7 @@ class RenderPhase {
 		return null;
 	}
 
-	addAttachment(attachment, keys) {
+	addAttachment (attachment, keys) {
 		attachment.keys = keys;
 		this.attachments.push(attachment);
 		this.newAttachments.push(attachment);

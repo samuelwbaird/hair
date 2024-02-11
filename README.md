@@ -17,6 +17,12 @@ hair.js is a single file module, that can be included in a project without any r
  * Using a convention whereby the identity of state objects matters (ie. works better if updates to the base state or model are incremental updates to a mutable object, rather than a fresh state object returned from a query each time)
  * Not attempting to be a full or perfect implementation of a virtual dom or provide a genuine functional reactive paradigm
  
+
+## Efficiency or reducing re-renders
+
+ * If a component does not directly use the state passed to it to determine its output (perhaps only sub-components of that component use it), then execute that component function directly when including it (rather than add it by reference to be executed later).
+ * Prefer to re-use state or model objects across updates to help the library re-use DOM elements, especially lists of objects
+ 
 ## Usage
 
 The main usage is to create functions that describe an HTML layout using the functions provided by the library. These functions perform the basic work of creating and updating the DOM.
@@ -86,18 +92,22 @@ Done
  * First pass basic recursive render 
  * A centrally managed frame timer to request delayed frame updates in a consolidated manner
  * A globally available signal to trigger re-render on updates to model/state object
+ * Initial rendering of HTML elements from a component tree
+ * An approach to event listening and access to DOM elements
+ * DOM updates without a full re-render
 
 In progress
 
- * Initial rendering of HTML elements from a component tree
  * A typical TODO list as a working example
- * An approach to event listening and access to DOM elements
  * Property handling for different properties that need special treatment
  
 To do
 
- * DOM updates without a full re-render
- * List specific render handling and recycling of list elements
+ * Consider supplying an explicit list of dependency key objects when assigning callbacks (or more things?) to explicitly determine when reuse is appropriate
+ * Ensure correct ordering of DOM elements when partially re-using content
+ * Information sharing through the context tree
+ * Listening to component lifecycle events or arbitrary event dispatch
+ * More efficient handling of long lists or large components
  * Dispose cycle through context tree
  * Add JSDoc markup throughout
  * Add additional examples
