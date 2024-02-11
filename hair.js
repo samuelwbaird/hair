@@ -3,14 +3,11 @@
 // top level request to render state to a parent using a component
 export function render(parent, state, component) {
 	// create a context (attached to this parent)
-	const context = new DOMContext(null, parent, component);
+	const context = new RenderContext(parent, component);
 
 	// recursively expand the component in element specs
 	context.render(state);
 
-	// mount events
-	context.dispatch('onMount');
-	context.dispatch('onUpdate');
 	return context;
 }
 
@@ -55,7 +52,7 @@ export function listen(event, listener) {
 
 // add an event listener as a child of instantiated elements that fires at most once
 export function once(event, listener) {
-	return new ListenSpecification(event, listener, true);	
+	return new ListenSpecification(event, listener, true);
 }
 
 // as a convenience provide built in element spec generators for common elements
@@ -76,16 +73,33 @@ export const h5 = elementFactory('h5');
 
 export const p = elementFactory('p');
 export const span = elementFactory('span');
-export const hr = elementFactory('h2');
+export const b = elementFactory('b');
+export const i = elementFactory('i');
+export const em = elementFactory('em');
+export const small = elementFactory('small');
+export const u = elementFactory('u');
+export const strike = elementFactory('strike');
+export const strong = elementFactory('strong');
+export const br = elementFactory('br');
+export const hr = elementFactory('hr');
+
+export const a = elementFactory('a');
+export const img = elementFactory('img');
 
 export const ol = elementFactory('ol');
 export const ul = elementFactory('ul');
 export const li = elementFactory('li');
 
+export const form = elementFactory('form');
+export const option = elementFactory('option');
 export const button = elementFactory('button');
 export const input = elementFactory('input');
 export const label = elementFactory('label');
 
+export const table = elementFactory('table');
+export const tr = elementFactory('tr');
+export const th = elementFactory('th');
+export const td = elementFactory('td');
 
 // -- Component Specification ---------------------------------------
 // components are presented as text, a function, an array, _or_ as one of these known objects
@@ -128,51 +142,118 @@ class ListenSpecification extends ComponentSpecification {
 // map the instantiated DOM objects to the components that created them
 // helping to support events, callbacks, lifecycle and updates
 
+// QUESTIONS: should h.compose be explicit, or somehow more automatic (compose lets you select a substate to pass to another component)
+// explicit, it lets you select a different root state object
+
+// RELATED: should list handling be automatic whenever the state is an array (for all functions, or only for compose)
+// maybe.. render/apply/update on a DOM context could detect whenever a list object is the root state object and do.... list stuff
+//
+
+// MAYBE: compose automatically and create a sub context whenever a function is supplied as a component (instead of immediately executed)
+// What is the natural definition of a context for this purpose
+// does every call of apply, or every dom parent element or every function application have its own context
+// simplified/explicit answer is every use of h.compose
+
+// Pass globals/shared values into the first context on first render...
+// yes set this up
+
+
+// RenderContext
+// RenderPhase
+
 // the context for a component having been rendered to the DOM
-class DOMContext {
-	
-	// parentContext, parentDOMElement, component
-	
-	constructor (contextParent, domParent, component) {
-		this.contextParent = contextParent;
-		this.domParent = domParent;
+class RenderContext {
+
+	constructor (parentDOMElement, component) {
+		// root of dom rendering
+		this.parentDOMElement = parentDOMElement;
 		this.component = component;
+
+		// created elements
+		this.attachments = [];
 	}
-	
+
+	// derive a child context
+	derive (parent, component) {
+		const child = new RenderContext(parent, component)
+		this.attachments.push(new SubContextAttachment(child));
+		return child;
+	}
+
+	// get/find (from this or any parent context)
+	// set (at this context level)
+
 	render (state) {
 		this.clear();
-		this.apply(this.domParent, state, this.component);
-		
-		// if not the current state then....
+		this.update(state);
+	}
+
+	update (state) {
+		if (!state) {
+			this.clear();
+			return;
+		}
+
+		removeWatcher(this);
+
+		const renderPhase = new RenderPhase(this);
+		this.#apply(this.parentDOMElement, state, this.component, renderPhase);
+		this.commit(renderPhase);
+
 		watch(state, () => {
 			console.log('state was signaled');
 			// _consolidatedSignals (implement on the context, not here)
+			this.update(state);
 		}, this);
-		
+
+
+		// mount events
+		// context.dispatch('onMount');
+		// context.dispatch('onUpdate');
 	}
-	
-	update (state) {
-		this.apply(parent, state, component);
-	}
-	
+
 	clear () {
-		
+		// remove all attachments in reverse order
+		// elements, subcontexts, listeners etc.
+
+		let i = this.attachments.length;
+		while (i > 0) {
+			this.attachments[--i].remove();
+		}
+		this.attachments = [];
+
+		removeWatcher(this);
 	}
-	
+
+	dispatch (event, data) {
+		// dispatch through children
+		// or dispatch through parents
+
+		// onMount, onUpdate, on
+	}
+
 	// recursive process to expand the components and apply them to the DOM
-	apply (parent, state, component) {
+	#apply (parent, state, component, renderPhase) {
+		if (Array.isArray(state)) {
+			for (const item of state) {
+				const subContext = this.derive(parent, component);
+				subContext.update(item);
+			}
+			return;
+		}
+
 		if (typeof component === 'string') {
-			parent.appendChild(document.createTextNode(component));
+			renderPhase.findCreateOrUpdateText(parent, component);
 
 		} else if (Array.isArray(component)) {
 			for (const c of component) {
-				this.apply(parent, state, c);
+				this.#apply(parent, state, c, renderPhase);
 			}
 
 		} else if (component instanceof ElementSpecification) {
 			// make the new element
-			const element = document.createElement(component.type);
-			parent.appendChild(element);
+			const element = renderPhase.findOrCreateElement(component.type, parent, state);
+
 			// apply the properties of this element
 			if (component.properties) {
 				for (const [key, value] of Object.entries(component.properties)) {
@@ -187,78 +268,220 @@ class DOMContext {
 				}
 			}
 			// add the children of this element
-			this.apply(element, state, component.children);
+			this.#apply(element, state, component.children, renderPhase);
 
 		} else if (component instanceof ComposeSpecification) {
 			// compose either a list or sub component
-			if (Array.isArray(component.state)) {
-				const listContext = new DOMListContext(this, parent, component.component);
-				for (const item of component.state) {
-					const subContext = new DOMContext(listContext, parent, component.component);
-					subContext.render(item);
-				}
-			} else {
-				const subContext = new DOMContext(this, parent, component.component);
-				subContext.render(component.state);
-			}
-		
+			const subContext = this.derive(parent, component.component);
+			subContext.update(component.state);
+
 		} else if (component instanceof ListenSpecification) {
-			// not implemented yet
-		
+			renderPhase.findOrCreateDOMListener(this, parent, component.event, component.listener);
+
 		} else if (typeof component === 'function') {
-			this.apply(parent, state, component(state));
+			this.#apply(parent, state, component(state), renderPhase);
 
 		} else if (component == null) {
 			// we can ignore
 
 		} else {
-			throw new Error('unhandled component type ' + (typeof item));
+			throw new Error('unhandled component type ' + (typeof component));
 		}
 	}
-	
-	dispatch (event, data) {
-		
+
+	commit (renderPhase) {
+		// remove prior attachments
+		let i = renderPhase.priorAttachments.length;
+		while (i > 0) {
+			renderPhase.priorAttachments[--i].remove();
+		}
+		// these are out new attachments
+		this.attachments = renderPhase.attachments;
+		// signal attachment on new attachments
+		for (const attachment of renderPhase.newAttachments) {
+			attachment.attach();
+		}
 	}
-	
+
 	dispose () {
 		this.clear();
+		markObjectAsDisposed(this);
 	}
 }
 
-class DOMListContext extends DOMContext {
-	constructor (contextParent, domParent, component) {
-		super(contextParent, domParent, component);
+class RenderPhase {
+
+	constructor (context) {
+		this.context = context;
+
+		// take a copy of all existing sub elements and sub contexts
+		// and attempt to re-use and update them during the render pass
+		this.priorAttachments = [...context.attachments];
+
+		// attachments created or in use this render
+		this.attachments = [];
+
+		// new attachments that need to be signalled "once" on creation
+		this.newAttachments = [];
 	}
 
-	// specialist list version of update
+	findOrCreateSubContext(state) {
+
+	}
+
+	findOrCreateElement(type, parent, state) {
+		const keys = [ type, parent, state ];
+		const existing = this.find(ElementAttachment, keys);
+		if (existing) {
+			return existing.element;
+		}
+
+		const element = document.createElement(type);
+		parent.appendChild(element);
+		this.addAttachment(new ElementAttachment(element), keys);
+		return element;
+	}
+
+	findCreateOrUpdateText(parent, text) {
+		const keys = [ parent ];
+		const existing = this.find(TextAttachment, keys);
+		if (existing) {
+			existing.textNode.textContent = text;
+			return existing;
+		}
+
+		const textNode = document.createTextNode(text);
+		parent.appendChild(textNode);
+		this.addAttachment(new TextAttachment(textNode), keys);
+		return textNode;
+	}
+
+	findOrCreateDOMListener(context, parent, event, listener) {
+		const keys = [ context, parent, event, listener ];
+		const existing = this.find(DOMListenerAttachment, keys);
+		if (existing) {
+			return existing;
+		}
+
+		return this.addAttachment(new DOMListenerAttachment(context, parent, event, listener), keys);
+	}
+
+	find(attachmentType, keys) {
+		let i = 0;
+		while (i < this.priorAttachments.length) {
+			const attachment = this.priorAttachments[i];
+			if (attachment instanceof attachmentType) {
+				for (let j = 0; j < keys.length; j++) {
+					if (keys[j] != attachment.keys[j]) {
+						i++; continue;
+					}
+				}
+				this.priorAttachments.splice(i, 1);
+				this.attachments.push(attachment);
+				return attachment;
+			}
+			i++;
+		}
+		return null;
+	}
+
+	addAttachment(attachment, keys) {
+		attachment.keys = keys;
+		this.attachments.push(attachment);
+		this.newAttachments.push(attachment);
+		return attachment;
+	}
+
 }
 
+class RenderAttachment {
+	// be prepared to let go of your attachments	
+	attach () {}
+	remove () {}
+}
 
-// -- Main render entry point  ------------------------------
+class SubContextAttachment extends RenderAttachment {
+	constructor (context) {
+		super();
+		this.context = context;
+	}
 
+	remove () {
+		this.context.dispose();
+	}
+}
 
+class ElementAttachment extends RenderAttachment {
+	constructor (element) {
+		super();
+		this.element = element;
+	}
 
+	remove () {
+		this.element.remove();
+	}
+}
+
+class TextAttachment extends RenderAttachment {
+	constructor (textNode) {
+		super();
+		this.textNode = textNode;
+	}
+
+	remove () {
+		this.textNode.remove();
+	}
+}
+
+class DOMListenerAttachment extends RenderAttachment {
+	constructor (context, element, eventName, handler) {
+		super();
+		this.element = element;
+		this.eventName = eventName;
+		this.handler = (evt) => { handler(context, element, evt); }
+	}
+
+	attach () {
+		this.element.addEventListener(this.eventName, this.handler);
+	}
+
+	remove () {
+		this.element.removeEventListener(this.eventName, this.handler);
+	}
+}
+
+class ContextListenerAttachment {
+
+}
+
+// -- setting properties that need specific handling ------------------------
 // property names that have specific functionality to apply them
 const propertyHandlers = {
-	_id: applyIDProperty,
-
-	_class: applyClasses,
-	className: applyClasses,
-	classes: applyClasses,
+	_id: applyContextIDProperty,
+	class: applyClassList,
+	style: applyMergedProperties,
 }
 
-function applyIDProperty(context, element, key, value) {
+export function setPropertyHandler(name, handler) {
+	propertyHandlers[name] = handler;
+}
+
+function applyContextIDProperty(context, element, key, value) {
 	context[value] = element;
 }
 
-function applyClasses(context, element, key, value) {
+function applyClassList(context, element, key, value) {
 }
 
-function applyMerged(context, element, key, value) {
+function applyMergedProperties(context, element, key, value) {
+	const mergeInto = element[key];
+	for (const [k, v] of Object.entries(value)) {
+		mergeInto[k] = v;
+	}
 }
 
 
-// -- watch / signal ---------------------------------------------
+// -- watch / signal / removeWatcher -------------------------------------------
 // a global weakly linked signal/watch system
 
 const watchMap = new WeakMap();
@@ -287,20 +510,20 @@ export function signal(object, ...args) {
 	if (!watchMap.has(object) || isObjectDisposed(object)) {
 		return;
 	}
-	
+
 	const list = watchMap.get(object);
-	for (const watcher of list) {
+	for (const watcher of [...list]) {
 		if (!isObjectDisposed(watcher.owner)) {
 			watcher.action(...args);
 		}
 	}
 }
 
-export function unwatch(owner) {
+export function removeWatcher(owner) {
 	if (!ownerMap.has(owner)) {
 		return;
 	}
-	
+
 	const list = ownerMap.get(owner);
 	ownerMap.delete(owner);
 	let i = 0;
@@ -313,9 +536,10 @@ export function unwatch(owner) {
 	}
 }
 
-
-// -- delay / frame ---------------------------------------
-// manage a consolidated timer for events that need to occur on a later render frame
+// -- delay / onNextFrame ---------------------------------------
+// a consolidated timer for events that need to occur on a later render frame
+// requestAnimationFrame is used to align updates smoothly with rendering
+// but is only activated around when delayed actions are actually requested
 
 const delayedActions = [];
 
@@ -364,24 +588,24 @@ function requestFrameTimer() {
 	if (frameIsRequested || delayedActions.length == 0) {
 		return;
 	}
-	
+
 	// work out if a long delay or short delay is needed next
 	const next = delayedActions[delayedActions.length - 1].time;
 	const now = Date.now();
-	
+
 	// cancel any current timeout
 	if (longDelayTimeout) {
 		clearTimeout(longDelayTimeout);
 		longDelayTimeout = false;
 	}
-	
+
 	// if the next action is soon then request an animation frame
 	if (next - now < READY_TIME) {
 		frameIsRequested = true;
 		requestAnimationFrame(_animationFrame);
 		return;
 	}
-	
+
 	// if the next action is not soon then request a timeout closer to the time
 	longDelayTimeout = setTimeout(requestFrameTimer, (next - now) - READY_TIME);
 }
@@ -393,11 +617,11 @@ function _animationFrame() {
 	while (delayedActions.length > 0 && delayedActions[delayedActions.length - 1].time <= now) {
 		toBeActioned.push(delayedActions.pop());
 	}
-	
+
 	// make sure the next frame is correctly queued if required
 	frameIsRequested = false;
 	requestFrameTimer();
-	
+
 	// ordered by phase to allow more consistent dispatch ordering
 	toBeActioned.sort((a1, a2) => {
 		return a1.phase - a2.phase;
@@ -410,13 +634,14 @@ function _animationFrame() {
 	}
 }
 
-// -- dispose / isDisposed ---------------------------------------
+// -- markObjectAsDisposed / isObjectDisposed ---------------------------------------
 // a globally available system to mark any object as disposed
+// disposed objects are ignored in timers and signals
 
 const disposeSet = new WeakSet();
 
 export function markObjectAsDisposed(obj) {
-	disposeSet.set(obj);
+	disposeSet.add(obj);
 }
 
 export function isObjectDisposed(obj) {

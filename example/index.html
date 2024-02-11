@@ -12,6 +12,9 @@
 	import * as hair from '../hair.js';
 	
 	// this simple example broken into a model class and view functions
+	// in this example code the view is "aware" of the model, reads data from it and calls methods to update data or mutate the model
+	// but the model is not "aware" of the view, it has no direct references to the view
+	// the model "signals" to hair.js whenever model objects have been updated, to trigger re-render of watching components
 	import TodoModel from './js/model.js';
 	import app from './js/view.js';
 	
@@ -26,14 +29,14 @@
 	
 	
 	
-	// -- additional example code to exercise the app -------------
+	// -- additional artificial example code to exercise the app -------------
 	
 	// the app relies on the simple global watch/signal mechanism to re-render updates to the model
 	// we can also trigger updates to the model outside of user interaction
 	// for example, this timer pretending we're getting updates from the network
 	let count = 0;
 	setInterval(() => {
-		model.addItem('New item from the network ' + (++count));
+		// model.addItem('New item from the network ' + (++count));
 	}, 15 * 1000);
 	
 	// we can use hair's central timer (which runs requestAnimationFrame only around due times on demand)

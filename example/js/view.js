@@ -30,15 +30,15 @@ function itemCount(count) {
 /** component to render each item in the list in its own view */
 function displayItem(model, item) {
 	return h.div([
-		h.input({ type: 'checkbox', _id: 'completed' }, [
+		h.input({ type: 'checkbox', _id: 'completed', checked: item.completed, disabled: item.completed }, [
 			h.listen('change', (context, element, e) => { 
-				if (element.value) {
+				if (element.checked) {
 					item.setCompleted();
 				}
 			}),
 		]),
-		h.span(item.text),
-		h.button('Delete', { _class: 'delete' }, h.listen('click', () => { model.delete(item); })),
+		h.span(item.text, { style: { ['textDecoration']: (item.completed ? 'line-through' : '') }}),
+		h.button('Delete', { class: 'delete' }, h.listen('click', () => { model.removeItem(item); })),
 	]);
 }
 
@@ -46,6 +46,6 @@ function displayItem(model, item) {
 function addItem(model) {
 	return h.div([
 		h.input({ _id: 'txt_input' }),
-		h.button('Add', { _class: 'add' }, h.listen('click', () => {  })),
+		h.button('Add', { class: 'add' }, h.listen('click', (context, element) => { model.addItem(context.txt_input.value); context.txt_input.value = ''; })),
 	]);
 }

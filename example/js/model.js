@@ -18,7 +18,7 @@ export default class TodoModel {
 	removeItem (item) {
 		const index = this.items.indexOf(item);
 		if (index >= 0) {
-			model.items.splice(index, 1);
+			this.items.splice(index, 1);
 			h.signal(this);
 		}
 	}

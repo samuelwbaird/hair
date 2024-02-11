@@ -1,7 +1,9 @@
 # hair.js
 A Javascript library for creation and update of DOM elements via component  function composition (but not purely FRP style)
 
-Taking a few of the things I think people like about FRP libraries and removing others. Less concerned with taking a functional reactive isolating component state from the DOM, and more with responding to a separate model/world state. Some of these choices make more sense from the point of view of games and simulations, and long lived state, rather than more transactional websites with fresh queries per page.
+Taking a few of the things I think people like about FRP libraries and removing others. Less concerned with managing a functional reactive component state isolated from the DOM, and more with responding to a separate model/world state. Some of these choices make more sense from the point of view of games, simulations, and long lived state, rather than more transactional websites with fresh queries per page.
+
+hair.js is a single file module, that can be included in a project without any required build steps.
 
 ## Goals
 
@@ -12,20 +14,20 @@ Taking a few of the things I think people like about FRP libraries and removing 
 
 ## Trade offs / non-goals
 
- * Using a convention where by the identity of state objects matters (ie. works better if updates to the base state or model are updates to a mutable object, rather than a fresh state object each time)
+ * Using a convention whereby the identity of state objects matters (ie. works better if updates to the base state or model are incremental updates to a mutable object, rather than a fresh state object returned from a query each time)
  * Not attempting to be a full or perfect implementation of a virtual dom or provide a genuine functional reactive paradigm
  
 ## Usage
 
-The main usage is to create functions that describe an HTML layout using the functions provided by the library.
+The main usage is to create functions that describe an HTML layout using the functions provided by the library. These functions perform the basic work of creating and updating the DOM.
 
-The output of the function can consist of single elements, or arrays of elements. Whenever elements are provided, they can be provided directly or as function references to create other components. The render process recursively resolves these into direct elements.
+The output of the function can consist of single elements, or arrays of elements. Whenever elements are provided, they can be provided directly or as function references to create other components. The render process recursively resolves arrays and functions into direct elements.
 
 All element functions allow three arguments in any order, a string for any text content, an object to set properties on the created element, and an array or single child element.
 
 Event listeners are instantiated as a special kind of child element (hair.listen), and there is special handling for lists of objects (hair.compose).
 
-See the included example TODO list to see examples of all of these.
+See the included example TODO list to see examples of all of these in use.
 
 Snippet:
 
@@ -56,7 +58,7 @@ Snippet:
 
 ## Viewing the example project
 
-Serve the root of repo using a local web server, eg.
+Serve the root of repo using any local web server, eg.
 
 	cd hair
 	python3 -m http.server
@@ -65,12 +67,22 @@ Open the example folder in your browser
 
 	open http://localhost:8000/example/
  
+## Special property handling
+
+During instantiation or update of DOM elements, recognised property names are given special treatment when applied to the element.
+
+ * __id, this property sets a reference to the element on the context object, eg. __id = "textbox" => sets a reference to this element at context.textbox
+ * class, this property when given a name, or an array of names, will update the classList of the element to match
+ * style, when an object value is applied to this property, the values of that object will be merged into the element style object, rather than replacing it
+
+setPropertyHandler can be used to provide your own property handlers globally for your project.
+
 
 ## Status
 
 Done
 
- * Determining the basic approach, include the interface for creating elements and context object related to DOM instantian
+ * Determining the basic approach, include the interface for creating elements and context object related to DOM instantiation
  * First pass basic recursive render 
  * A centrally managed frame timer to request delayed frame updates in a consolidated manner
  * A globally available signal to trigger re-render on updates to model/state object
@@ -79,13 +91,13 @@ In progress
 
  * Initial rendering of HTML elements from a component tree
  * A typical TODO list as a working example
- * Approach to event listening and access to DOM elements
- * Property handling for applying 
+ * An approach to event listening and access to DOM elements
+ * Property handling for different properties that need special treatment
  
 To do
 
- * DOM updates without re-render
- * List specific render handling
+ * DOM updates without a full re-render
+ * List specific render handling and recycling of list elements
  * Dispose cycle through context tree
  * Add JSDoc markup throughout
  * Add additional examples
