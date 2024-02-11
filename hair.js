@@ -143,25 +143,6 @@ class ListenSpecification extends ComponentSpecification {
 // map the instantiated DOM objects to the components that created them
 // helping to support events, callbacks, lifecycle and updates
 
-// QUESTIONS: should h.compose be explicit, or somehow more automatic (compose lets you select a substate to pass to another component)
-// explicit, it lets you select a different root state object
-
-// RELATED: should list handling be automatic whenever the state is an array (for all functions, or only for compose)
-// maybe.. render/apply/update on a DOM context could detect whenever a list object is the root state object and do.... list stuff
-//
-
-// MAYBE: compose automatically and create a sub context whenever a function is supplied as a component (instead of immediately executed)
-// What is the natural definition of a context for this purpose
-// does every call of apply, or every dom parent element or every function application have its own context
-// simplified/explicit answer is every use of h.compose
-
-// Pass globals/shared values into the first context on first render...
-// yes set this up
-
-
-// RenderContext
-// RenderPhase
-
 const TIMER_PHASE_MODEL_UPDATES = 1;
 
 // the context for a component having been rendered to the DOM
@@ -193,10 +174,24 @@ class RenderContext {
 		this.update(state);
 	}
 
-	update (state) {
+	update (state, parentOrder = null) {
 		if (!state) {
 			this.clear();
 			return;
+		}
+
+		// track the intended order of elements as they are created or reused
+		if (parentOrder) {
+			this.parentOrder = parentOrder;
+		} else {
+			this.parentOrder = new Map();
+			// we need to start this component off in its current position
+			for (const attachment of this.attachments) {
+				if ((attachment instanceof ElementAttachment) && (attachment.element.parentElement == this.parentDOMElement)) {
+					const index = currentIndexOfElement(this.parentDOMElement.children, attachment.element);
+					this.parentOrder.set(this.parentDOMElement, index - 1);
+				}
+			}
 		}
 
 		// unwatch signals/updates
@@ -204,7 +199,7 @@ class RenderContext {
 		this.updateIsRequested = false;
 
 		// begin middle and end of render
-		const renderPhase = new RenderPhase(this);
+		const renderPhase = new RenderPhase(this, this.parentOrder);
 		this.#apply(this.parentDOMElement, state, this.component, renderPhase);
 		this.commit(renderPhase);
 
@@ -236,7 +231,6 @@ class RenderContext {
 	dispatch (event, data) {
 		// dispatch through children
 		// or dispatch through parents
-
 		// onMount, onUpdate, on
 	}
 
@@ -246,7 +240,7 @@ class RenderContext {
 			// special case list handling... map list items and their component to the created element
 			for (const item of state) {
 				const subContext = renderPhase.findOrCreateListItemSubContext(this, parent, component, item);
-				subContext.update(item);
+				subContext.update(item, renderPhase.parentOrder);
 			}
 			return;
 		}
@@ -282,7 +276,7 @@ class RenderContext {
 		} else if (component instanceof ComposeSpecification) {
 			// compose either a list or sub component
 			const subContext = renderPhase.findOrCreateSubContext(this, parent, component.component, component.reuseKey);
-			subContext.update(component.state);
+			subContext.update(component.state, renderPhase.parentOrder);
 
 		} else if (component instanceof ListenSpecification) {
 			renderPhase.findOrCreateDOMListener(this, parent, component.event, component.listener);
@@ -326,8 +320,9 @@ class RenderContext {
 
 class RenderPhase {
 
-	constructor (context) {
+	constructor (context, parentOrder) {
 		this.context = context;
+		this.parentOrder = parentOrder;
 
 		// take a copy of all existing sub elements and sub contexts
 		// and attempt to re-use and update them during the render pass
@@ -367,14 +362,29 @@ class RenderPhase {
 	}
 
 	findOrCreateElement (type, parent, state) {
+		if (!this.parentOrder.has(parent)) {
+			this.parentOrder.set(parent, -1);
+		}
+		const position = this.parentOrder.get(parent) + 1;
+		this.parentOrder.set(parent, position);
+		const children = parent.children;
+				
 		const keys = [ type, parent, state ];
 		const existing = this.find(ElementAttachment, keys);
 		if (existing) {
+			if (currentIndexOfElement(children, existing.element) != position) {
+				existing.element.remove();
+				parent.insertBefore(existing.element, children[position]);
+			}
 			return existing.element;
 		}
 
 		const element = document.createElement(type);
-		parent.appendChild(element);
+		if (position >= children.length) {
+			parent.appendChild(element);
+		} else {			
+			parent.insertBefore(element, children[position]);
+		}
 		this.addAttachment(new ElementAttachment(element), keys);
 		return element;
 	}
@@ -433,6 +443,17 @@ class RenderPhase {
 		return attachment;
 	}
 
+}
+
+function currentIndexOfElement(children, element) {
+	let currentIndex = 0;
+	for (const child of children) {
+		if (child == element) {
+			return currentIndex;
+		}
+		currentIndex++;
+	}
+	return false;
 }
 
 class RenderAttachment {
@@ -537,7 +558,6 @@ function applyMergedProperties(context, element, key, value) {
 		mergeInto[k] = v;
 	}
 }
-
 
 // -- watch / signal / removeWatcher -------------------------------------------
 // a global weakly linked signal/watch system

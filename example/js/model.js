@@ -32,7 +32,7 @@ export default class TodoModel {
 				return 1;
 			} else {
 				return a.text.toLowerCase().localeCompare(b.text.toLowerCase());
-			}			
+			}
 		});
 		h.signal(this);
 	}
