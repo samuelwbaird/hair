@@ -30,7 +30,11 @@ function itemCount (count) {
 
 function sortButton (model) {
 	// sort button to test out ordering of re-used elements
-	return h.button('Sort Items', { class: ['btn', 'btn-sort'] }, h.listen('click', () => { model.sortItems(); }));
+	return [
+		h.button('Sort Items', { class: ['btn', 'btn-sort'] }, h.listen('click', () => { model.sortItems(); })),
+		h.div({ style: { display: 'inline', marginRight: '10px' }}),
+		h.span('(alphabetical sort, with completed items last)'),
+	];
 }
 
 /** component to render each item in the list in its own view */
@@ -43,7 +47,9 @@ function displayItem (model, item) {
 				}
 			}),
 		]),
+		h.div({ style: { display: 'inline', marginRight: '5px' }}),
 		h.span(item.text, { class: 'txt-todo', style: { textDecoration: (item.completed ? 'line-through' : '') }}),
+		h.div({ style: { display: 'inline', marginRight: '5px' }}),
 		h.button('Delete', { class: ['btn', 'btn-delete'] }, h.listen('click', () => { model.removeItem(item); })),
 	]);
 }
@@ -52,6 +58,7 @@ function displayItem (model, item) {
 function addItem (model) {
 	return h.div([
 		h.input({ _id: 'txt_input' }),
+		h.div({ style: { display: 'inline', marginRight: '10px' }}),
 		h.button('Add', { class: ['btn', 'btn-add'] }, h.listen('click', (context, element) => {
 			// use a reference to a another element within this same context, using the special _id property
 			model.addItem(context.txt_input.value);

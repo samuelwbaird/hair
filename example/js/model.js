@@ -27,9 +27,9 @@ export default class TodoModel {
 		// alphabetical, with completed items first
 		this.items.sort((a, b) => {
 			if (a.completed && !b.completed) {
-				return -1;
-			} else if (b.completed && !a.completed) {
 				return 1;
+			} else if (b.completed && !a.completed) {
+				return -1;
 			} else {
 				return a.text.toLowerCase().localeCompare(b.text.toLowerCase());
 			}

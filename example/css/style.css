@@ -1,11 +1,26 @@
-body{
-    margin: 0 auto;
+body {
     font-family: Georgia, Palatino, serif;
-    color: #444444;
-    max-width: 960px;
-    padding: 30px;
+    margin: 40px auto;
+    max-width: 650px;
+    line-height: 1.6;
+    font-size: 18px;
+    color: #444;
+	padding: 0 10;
+}
+
+p {
+	margin-block-start: 0.25em;
+	margin-block-end: 0.25em;
+}
+
+span {
+	vertical-align: middle;	
 }
 
 span.txt-todo {
 	min-width: 320px;
+}
+
+h1, h2, h3 {
+    line-height: 1.2
 }

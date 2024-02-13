@@ -470,6 +470,7 @@ class SubContextAttachment extends RenderAttachment {
 
 	remove () {
 		this.context.dispose();
+		this.context = null;
 	}
 }
 
@@ -480,7 +481,9 @@ class ElementAttachment extends RenderAttachment {
 	}
 
 	remove () {
+		markObjectAsDisposed(this.element);
 		this.element.remove();
+		this.element = null;
 	}
 }
 
@@ -492,6 +495,7 @@ class TextAttachment extends RenderAttachment {
 
 	remove () {
 		this.textNode.remove();
+		this.textNode = null;
 	}
 }
 
@@ -510,6 +514,8 @@ class DOMListenerAttachment extends RenderAttachment {
 
 	remove () {
 		this.element.removeEventListener(this.eventName, this.wrappedHandler);
+		this.element = null;
+		this.handler = null;
 	}
 }
 

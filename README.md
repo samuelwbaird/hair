@@ -97,11 +97,11 @@ Done
  * DOM updates without a full re-render
  * Property handling for different properties that need special treatment
  * Consider supplying an explicit list of dependency key objects when assigning callbacks (or more things?) to explicitly determine when reuse is appropriate
+ * A typical TODO list as a working example
+ * Ensure correct ordering of DOM elements when partially re-using content
 
 In progress
 
- * A typical TODO list as a working example
- * Ensure correct ordering of DOM elements when partially re-using content
  * Listening to component lifecycle events or arbitrary event dispatch
  
 To do
