@@ -103,6 +103,7 @@ Done
 In progress
 
  * Listening to component lifecycle events or arbitrary event dispatch
+ * Can we do more efficient moving through tracking the insert before target rather than the index
  
 To do
 

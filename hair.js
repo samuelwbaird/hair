@@ -1,5 +1,9 @@
 // -- public interface of the library ---------------------------------
 
+const MONITOR_DOM_UPDATES = false;
+let CREATE_COUNT = 0;
+let MOVE_COUNT = 0;
+
 // top level request to render state to a parent using a component
 export function render(parent, state, component) {
 	// create a context (attached to this parent)
@@ -52,9 +56,15 @@ export function listen(event, listener) {
 }
 
 // attach, detach, update - re-use references to the same function object to prevent extra updates
+
 // onAttach
 // onRemove
 // onUpdate
+// onRender (= attach or update)
+// onEvent (event, eventData)
+// onFrame
+// onDelay
+// onTimer
 
 // as a convenience provide built in element spec generators for common elements
 export function elementFactory(type) {
@@ -188,8 +198,7 @@ class RenderContext {
 			// we need to start this component off in its current position
 			for (const attachment of this.attachments) {
 				if ((attachment instanceof ElementAttachment) && (attachment.element.parentElement == this.parentDOMElement)) {
-					const index = currentIndexOfElement(this.parentDOMElement.children, attachment.element);
-					this.parentOrder.set(this.parentDOMElement, index - 1);
+					this.parentOrder.set(this.parentDOMElement, attachment.element);
 				}
 			}
 		}
@@ -363,27 +372,33 @@ class RenderPhase {
 
 	findOrCreateElement (type, parent, state) {
 		if (!this.parentOrder.has(parent)) {
-			this.parentOrder.set(parent, -1);
+			this.parentOrder.set(parent, parent.firstChild);
 		}
-		const position = this.parentOrder.get(parent) + 1;
-		this.parentOrder.set(parent, position);
-		const children = parent.children;
+		const insertBefore = this.parentOrder.get(parent);
 				
 		const keys = [ type, parent, state ];
 		const existing = this.find(ElementAttachment, keys);
 		if (existing) {
-			if (currentIndexOfElement(children, existing.element) != position) {
+			if (existing.element == insertBefore) {
+				this.parentOrder.set(parent, existing.element.nextSibling);
+			} else {
+				if (MONITOR_DOM_UPDATES) {
+					MOVE_COUNT++;
+				}
 				existing.element.remove();
-				parent.insertBefore(existing.element, children[position]);
+				parent.insertBefore(existing.element, insertBefore);
 			}
 			return existing.element;
 		}
 
+		if (MONITOR_DOM_UPDATES) {
+			CREATE_COUNT++;
+		}
 		const element = document.createElement(type);
-		if (position >= children.length) {
+		if (insertBefore) {
+			parent.insertBefore(element, insertBefore);
+		} else {
 			parent.appendChild(element);
-		} else {			
-			parent.insertBefore(element, children[position]);
 		}
 		this.addAttachment(new ElementAttachment(element), keys);
 		return element;
@@ -443,17 +458,6 @@ class RenderPhase {
 		return attachment;
 	}
 
-}
-
-function currentIndexOfElement(children, element) {
-	let currentIndex = 0;
-	for (const child of children) {
-		if (child == element) {
-			return currentIndex;
-		}
-		currentIndex++;
-	}
-	return false;
 }
 
 class RenderAttachment {
@@ -733,4 +737,15 @@ export function isObjectDisposed(obj) {
 		return false;
 	}
 	return disposeSet.has(obj);
+}
+
+if (MONITOR_DOM_UPDATES) {
+	function showCount() {
+		console.log('create ' + CREATE_COUNT);
+		console.log('move   ' + MOVE_COUNT);
+		CREATE_COUNT = 0;
+		MOVE_COUNT = 0;
+		delay(10, showCount);
+	}
+	delay(10, showCount);	
 }
