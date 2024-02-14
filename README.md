@@ -99,16 +99,17 @@ Done
  * Consider supplying an explicit list of dependency key objects when assigning callbacks (or more things?) to explicitly determine when reuse is appropriate
  * A typical TODO list as a working example
  * Ensure correct ordering of DOM elements when partially re-using content
+ * Can we do more efficient moving through tracking the insert before target rather than the index
+ * Dispose cycle through context tree
 
 In progress
 
  * Listening to component lifecycle events or arbitrary event dispatch
- * Can we do more efficient moving through tracking the insert before target rather than the index
+ * Information sharing through the context tree
+ * Recurring timer or set number of repeats support?
  
 To do
 
- * Information sharing through the context tree
  * More efficient handling of long lists or large components
- * Dispose cycle through context tree
  * Add JSDoc markup throughout
  * Add additional examples

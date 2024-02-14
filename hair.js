@@ -1,8 +1,10 @@
 // -- public interface of the library ---------------------------------
 
+// log statistics on how many dom elements are being either created, or moved (since last log)
 const MONITOR_DOM_UPDATES = false;
 let CREATE_COUNT = 0;
 let MOVE_COUNT = 0;
+let REQUEST_ANIMATION_FRAME_COUNT = 0;
 
 // top level request to render state to a parent using a component
 export function render(parent, state, component) {
@@ -176,8 +178,8 @@ class RenderContext {
 		return child;
 	}
 
-	// get/find (from this or any parent context)
-	// set (at this context level)
+	// TODO: get/find (from this or any parent context)
+	// TODO: set (at this context level)
 
 	render (state) {
 		this.clear();
@@ -238,7 +240,7 @@ class RenderContext {
 	}
 
 	dispatch (event, data) {
-		// dispatch through children
+		// TODO: dispatch through children
 		// or dispatch through parents
 		// onMount, onUpdate, on
 	}
@@ -302,11 +304,6 @@ class RenderContext {
 	}
 
 	commit (renderPhase) {
-		// console.log('Render: ' + renderPhase.newAttachments.length + ' new attachments')
-		// console.log('Render: ' + renderPhase.priorAttachments.length + ' removed attachments')
-		// console.log('Render: ' + renderPhase.attachments.length + ' current attachments')
-		// console.log('------')
-
 		// remove prior attachments
 		let i = renderPhase.priorAttachments.length;
 		while (i > 0) {
@@ -580,18 +577,19 @@ export function watch(object, action, owner) {
 	if (!watchMap.has(object)) {
 		watchMap.set(object, []);
 	}
-	watchMap.get(object).push({
-		action: action,
-		owner: owner,
-	});
+	const watcher = new Watcher(object, action, owner);
+	watchMap.get(object).push(watcher);
 
 	// reverse map owner to watched objects to help with reversal
 	if (owner) {
 		if (!ownerMap.has(owner)) {
 			ownerMap.set(owner, []);
 		}
-		ownerMap.get(owner).push(object);
+		ownerMap.get(owner).push(watcher);
 	}
+	
+	// return the specific action+owner object to allow cancelling that specifically also
+	return watcher;
 }
 
 export function signal(object, ...args) {
@@ -607,20 +605,36 @@ export function signal(object, ...args) {
 	}
 }
 
-export function removeWatcher(owner) {
-	if (!ownerMap.has(owner)) {
-		return;
-	}
-
-	const list = ownerMap.get(owner);
-	ownerMap.delete(owner);
-	let i = 0;
-	while (i < list.length) {
-		if (list[i].owner == owner) {
-			list.splice(i, 1);
-		} else {
-			i++;
+/** remove a specific watcher or all watchers for an owner */
+export function removeWatcher(ownerOrWatcher) {
+	if (ownerOrWatcher instanceof Watcher) {
+		const watchersForObject = watchMap.get(ownerOrWatcher.object);
+		if (watchersForObject) {
+			let i = watchersForObject.length;
+			while (i > 0) {
+				if (watchersForObject[--i] == ownerOrWatcher) {
+					watchersForObject.splice(i, 1);
+				}
+			}
+			if (watchersForObject.length == 0) {
+				watchMap.delete(ownerOrWatcher.object);
+			}
 		}
+		
+	} else if (ownerMap.has(ownerOrWatcher)) {
+		const allWatchersForOwner = ownerMap.get(ownerOrWatcher);
+		ownerMap.delete(ownerOrWatcher);
+		for (const watcher of allWatchersForOwner) {
+			removeWatcher(watcher);
+		}
+	}
+}
+
+class Watcher {
+	constructor (object, action, owner) {
+		this.object = object;
+		this.action = action;
+		this.owner = owner;
 	}
 }
 
@@ -633,34 +647,32 @@ const delayedActions = [];
 
 export function delay(seconds, action, phase, owner) {
 	phase = phase ?? 0;
-	delayedActions.push({
-		time: Date.now() + (seconds * 1000),
-		action: action,
-		phase: phase,
-		owner: owner,
-	});
+	const delayedAction = new DelayedAction(Date.now() + (seconds * 1000), action, phase, owner);
+	delayedActions.push(delayedAction);
 	// sort the upcoming actions to the end of the list
 	delayedActions.sort((a, b) => {
 		return a.time - b.time;
 	});
 	requestFrameTimer();
+	return delayedAction;
 }
 
 export function onNextFrame(action, phase, owner) {
 	phase = phase ?? 0;
-	delayedActions.push({
-		time: 0,
-		action: action,
-		phase: phase,
-		owner: owner,
-	});
+	const delayedAction = new DelayedAction(0, action, phase, owner);
+	delayedActions.push(delayedAction);
 	requestFrameTimer();
+	return delayedAction;
 }
+
+// interval
+// repeat
 
 export function cancel(owner) {
 	let i = 0;
 	while (i < delayedActions.length) {
-		if (delayedActions[i].owner == owner) {
+		const check = delayedActions[i];
+		if (check == owner || check.owner == owner) {
 			delayedActions.splice(i, 1);
 		} else {
 			i++;
@@ -668,9 +680,9 @@ export function cancel(owner) {
 	}
 }
 
-const READY_TIME = 100;
-let frameIsRequested = false;
-let longDelayTimeout = false;
+const READY_TIME = 50;			// how many ms ahead of the requested time slot do we switch from setTimeout to requestAnimationFrame
+let frameIsRequested = false;	// is an animationFrameRequest for the next frame already in play?
+let longDelayTimeout = false;	// is a timeout for delayed animation frames already in play?
 
 function requestFrameTimer() {
 	if (frameIsRequested || delayedActions.length == 0) {
@@ -699,6 +711,10 @@ function requestFrameTimer() {
 }
 
 function _animationFrame() {
+	if (MONITOR_DOM_UPDATES) {
+		REQUEST_ANIMATION_FRAME_COUNT++;
+	}
+	
 	// set aside all actions now due
 	const now = Date.now();
 	const toBeActioned = [];
@@ -719,6 +735,15 @@ function _animationFrame() {
 		if (!isObjectDisposed(delayed.owner)) {
 			delayed.action();
 		}
+	}
+}
+
+class DelayedAction {
+	constructor (time, action, phase, owner) {
+		this.time = time;
+		this.action = action;
+		this.phase = phase;
+		this.owner = owner;
 	}
 }
 
@@ -743,8 +768,10 @@ if (MONITOR_DOM_UPDATES) {
 	function showCount() {
 		console.log('create ' + CREATE_COUNT);
 		console.log('move   ' + MOVE_COUNT);
+		console.log('animationFramesRequest ' + REQUEST_ANIMATION_FRAME_COUNT);
 		CREATE_COUNT = 0;
 		MOVE_COUNT = 0;
+		REQUEST_ANIMATION_FRAME_COUNT = 0;
 		delay(10, showCount);
 	}
 	delay(10, showCount);	
