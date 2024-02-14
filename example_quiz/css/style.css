@@ -1,0 +1,55 @@
+body {
+    font-family: Georgia, Palatino, serif;
+    margin: 40px auto;
+    max-width: 650px;
+    line-height: 1.6;
+    font-size: 18px;
+    color: #444;
+	padding: 0 10;
+}
+
+h1, h2, h3 {
+    line-height: 1.2
+}
+
+p {
+	margin-block-start: 0.25em;
+	margin-block-end: 0.25em;
+}
+
+span {
+	vertical-align: middle;	
+}
+
+div.button-holder {
+	display: flex;
+	justify-content: space-evenly;
+	gap: 10px;
+}
+
+button.main {
+    backface-visibility: hidden;
+    background-color: #2f80ed;
+    border-radius: 10px;
+    border-style: none;
+    box-shadow: none;
+    box-sizing: border-box;
+	padding: 20px;
+	
+    color: #fff;
+    font-size: 15px;
+    font-weight: 500;
+
+    cursor: pointer;	
+    transition-duration: 0.1s;
+	
+	width: 160px;
+}
+
+button.main:hover {
+    background-color: #1366d6;
+}
+
+button.main:active {
+    transform: translateY(1px);
+}

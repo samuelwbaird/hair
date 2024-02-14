@@ -71,7 +71,9 @@ Serve the root of repo using any local web server, eg.
 
 Open the example folder in your browser
 
-	open http://localhost:8000/example/
+	open http://localhost:8000/example_todo_list/
+
+	open http://localhost:8000/example_quiz/
  
 ## Special property handling
 
@@ -81,7 +83,7 @@ During instantiation or update of DOM elements, recognised property names are gi
  * class, this property when given a name, or an array of names, will update the classList of the element to match
  * style, when an object value is applied to this property, the values of that object will be merged into the element style object, rather than replacing it
 
-setPropertyHandler can be used to provide your own property handlers globally for your project.
+*setPropertyHandler* can be used to provide your own property handlers globally for your project.
 
 
 ## Status
@@ -104,12 +106,12 @@ Done
 
 In progress
 
+ * Add additional examples
  * Listening to component lifecycle events or arbitrary event dispatch
  * Information sharing through the context tree
  * Recurring timer or set number of repeats support?
  
 To do
 
- * More efficient handling of long lists or large components
+ * More efficient handling of long lists or large components (multi key dictionary instead of array)
  * Add JSDoc markup throughout
- * Add additional examples

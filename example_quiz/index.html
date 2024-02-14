@@ -1,0 +1,25 @@
+<html>
+<head>
+	<title>hair.js Quiz Example</title>
+	<link href="css/style.css" rel="stylesheet">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div id="app">
+</div>
+<script type="module" charset="UTF-8">
+
+	import * as hair from '../hair.js';
+	import QuizApp from './js/controller.js';
+	
+	// A simple quiz example, the content is simple maths questions presented as multi choice options
+	// The example shows some navigation between different screens, timers and transitions through multiple states
+		
+	// -- render the app in place ---------------------------------
+	const root = document.getElementById('app');
+	const controller = new QuizApp(root);
+	controller.navMainMenu();
+	
+</script>
+</body>
+</html>
