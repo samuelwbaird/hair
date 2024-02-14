@@ -103,12 +103,12 @@ Done
  * Ensure correct ordering of DOM elements when partially re-using content
  * Can we do more efficient moving through tracking the insert before target rather than the index
  * Dispose cycle through context tree
+ * Information sharing through the context tree
 
 In progress
 
  * Add additional examples
  * Listening to component lifecycle events or arbitrary event dispatch
- * Information sharing through the context tree
  * Recurring timer or set number of repeats support?
  
 To do

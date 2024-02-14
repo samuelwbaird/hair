@@ -7,9 +7,9 @@ let MOVE_COUNT = 0;
 let REQUEST_ANIMATION_FRAME_COUNT = 0;
 
 // top level request to render state to a parent using a component
-export function render(parent, state, component) {
+export function render(parent, state, component, initialContextValues = null) {
 	// create a context (attached to this parent)
-	const context = new RenderContext(parent, component);
+	const context = new RenderContext(parent, component, initialContextValues);
 
 	// recursively expand the component in element specs
 	context.render(state);
@@ -160,7 +160,7 @@ const TIMER_PHASE_MODEL_UPDATES = 1;
 // the context for a component having been rendered to the DOM
 class RenderContext {
 
-	constructor (parentDOMElement, component) {
+	constructor (parentDOMElement, component, initialContextValues = null) {
 		// root of dom rendering
 		this.parentDOMElement = parentDOMElement;
 		this.component = component;
@@ -170,16 +170,38 @@ class RenderContext {
 
 		// consolidate updates
 		this.updateIsRequested = false;
+		
+		// context reference values, ie. app and library integrations (rather than model data)
+		this.contextValues = new Map();
+		if (initialContextValues) {
+			for (const [key, value] of Object.entries(initialContextValues)) {
+				this.set(key, value);
+			}
+		}
 	}
 
 	// derive a child context
 	derive (parentDOMElement, component) {
 		const child = new RenderContext(parentDOMElement, component);
+		child.parentContext = this;
 		return child;
 	}
 
-	// TODO: get/find (from this or any parent context)
-	// TODO: set (at this context level)
+	// set a value or reference at this level of the context
+	set (name, value) {
+		this.contextValues.set(name, value);
+	}
+	
+	// get a value stored in this or any parent context
+	get (name, defaultValue = null) {
+		if (this.contextValues.has(name)) {
+			return this.contextValues.get(name);
+		}		
+		if (this.parentContext) {
+			return this.parentContext.get(name);
+		}
+		return defaultValue;
+	}
 
 	render (state) {
 		this.clear();
@@ -651,7 +673,7 @@ export function delay(seconds, action, phase, owner) {
 	delayedActions.push(delayedAction);
 	// sort the upcoming actions to the end of the list
 	delayedActions.sort((a, b) => {
-		return a.time - b.time;
+		return b.time - a.time;
 	});
 	requestFrameTimer();
 	return delayedAction;
