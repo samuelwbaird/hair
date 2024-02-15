@@ -28,7 +28,6 @@ div.button-holder {
 }
 
 button.main {
-    backface-visibility: hidden;
     background-color: #2f80ed;
     border-radius: 10px;
     border-style: none;
@@ -40,7 +39,7 @@ button.main {
     font-size: 15px;
     font-weight: 500;
 
-    cursor: pointer;	
+    cursor: pointer;
     transition-duration: 0.1s;
 	
 	width: 160px;
@@ -52,4 +51,49 @@ button.main:hover {
 
 button.main:active {
     transform: translateY(1px);
+}
+
+
+div.answer-holder {
+	display: flex;
+	justify-content: center;
+	gap: 10px;
+}
+
+button.answer {
+    background-color: #2f80ed;
+    border-radius: 10px;
+    border-style: none;
+    box-shadow: none;
+    box-sizing: border-box;
+	padding: 10px;
+	
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+
+    cursor: pointer;	
+    transition-duration: 0.1s;
+	transition: opacity 0.25s linear;	
+	
+	width: 100px;
+}
+
+button.answer:hover {
+    background-color: #1366d6;
+}
+
+button.answer:active {
+    transform: translateY(1px);
+}
+
+button.answer:disabled {
+    cursor: not-allowed;
+	pointer-events: none;
+	color: #333;
+    background-color: #acccf8;
+}
+
+button.correct:disabled {
+    background-color: #2fed80;
 }

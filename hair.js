@@ -27,6 +27,9 @@ export function element(type, arg1, arg2, arg3) {
 		if (typeof arg === 'string') {
 			// strings are a valid child element
 			children.push(arg);
+		} else if (typeof arg == 'number') {
+			// treat numbers are strings
+			children.push(arg.toString());
 		} else if (Array.isArray(arg)) {
 			for (const child of arg) {
 				children.push(child);
@@ -64,9 +67,11 @@ export function listen(event, listener) {
 // onUpdate
 // onRender (= attach or update)
 // onEvent (event, eventData)
-// onFrame
-// onDelay
-// onTimer
+
+// onFrame (every renderframe while this component is present)
+// onDelay (after render once)
+// onTimer (immediately and after every X seconds)
+// context.addDisposable
 
 // as a convenience provide built in element spec generators for common elements
 export function elementFactory(type) {
@@ -178,6 +183,11 @@ class RenderContext {
 				this.set(key, value);
 			}
 		}
+	}
+
+	// component refreshed on reuse
+	updateComponent(component) {
+		this.component = component;
 	}
 
 	// derive a child context
@@ -367,7 +377,7 @@ class RenderPhase {
 		const keys = [ parent, keyObject ];
 		const existing = this.find(SubContextAttachment, keys);
 		if (existing) {
-			existing.component = component;
+			existing.context.updateComponent(component);
 			return existing.context;
 		}
 
@@ -380,7 +390,7 @@ class RenderPhase {
 		const keys = [ parent, keyObject ];
 		const existing = this.find(SubContextAttachment, keys);
 		if (existing) {
-			existing.component = component;
+			existing.context.updateComponent(component);
 			return existing.context;
 		}
 
@@ -569,9 +579,11 @@ function applyClassList(context, element, key, value) {
 	}
 	const newNames = new Set();
 	for (const className of value) {
-		newNames.add(className);
-		if (!element.classList.contains(className)) {
-			element.classList.add(className);
+		if (className != null && className != '' && className != false) {
+			newNames.add(className);
+			if (!element.classList.contains(className)) {
+				element.classList.add(className);
+			}
 		}
 	}
 	for (const className of element.classList) {

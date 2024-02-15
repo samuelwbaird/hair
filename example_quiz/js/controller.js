@@ -17,17 +17,17 @@ export default class QuizApp {
 	
 	getLevels () {
 		return [
-			{ label: 'Easy Quiz', action: () => { this.startLevel(5, 1, 5); } },
-			{ label: 'Medium Quiz', action: () => { this.startLevel(5, 3, 7); }  },
-			{ label: 'Hard Quiz', action: () => { this.startLevel(5, 1, 12); }  },
+			{ label: 'Easy Quiz', action: () => { this.startLevel(new model.QuizModel('Easy Quiz', 5, 1, 5)); } },
+			{ label: 'Medium Quiz', action: () => { this.startLevel(new model.QuizModel('Medium Quiz', 5, 3, 7)); }  },
+			{ label: 'Hard Quiz', action: () => { this.startLevel(new model.QuizModel('Hard Quiz', 5, 1, 12)); }  },
 		];
 	}
 	
-	startLevel (numberOfQuestion, minNumber, maxNumber) {
+	startLevel (quiz) {
 		//fade out the menu
 		this.rootView.dispatch('fadeout');
 		hair.delay(0.25, () => {
-			this.#setTopLevel(new model.QuizModel(numberOfQuestion, minNumber, maxNumber), view.quizView);
+			this.#setTopLevel(quiz, view.quizView);
 		});
 	}
 	
