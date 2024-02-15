@@ -25,7 +25,7 @@ export default class QuizApp {
 	
 	startLevel (quiz) {
 		//fade out the menu
-		this.rootView.dispatch('fadeout');
+		this.rootView.broadcast('fadeout');
 		hair.delay(0.25, () => {
 			this.#setTopLevel(quiz, view.quizView);
 		});

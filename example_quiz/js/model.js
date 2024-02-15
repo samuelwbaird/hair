@@ -23,6 +23,7 @@ export class QuizModel {
 	
 	queueNextQuestion () {
 		this.currentQuestion = this.remainingQuestions.pop();
+		// once all the questions are done generate the results
 		if (!this.currentQuestion && !this.results) {
 			this.results = new QuizResults();
 		}
@@ -34,13 +35,14 @@ export class QuizModel {
 class QuizQuestion {
 	
 	constructor (minNumber, maxNumber) {
+		// generate a random multiplication question with 4 possible answers
 		const n1 = Math.floor(Math.random() * ((maxNumber + 1) - minNumber)) + minNumber;
 		const n2 = Math.floor(Math.random() * ((maxNumber + 1) - minNumber)) + minNumber;
 		const answer = n1 * n2;
+
 		this.text = 'What is ' + n1 + ' x ' + n2;
-		
-		
 		this.answers = [];
+
 		let shownAnswer = answer - Math.floor(Math.random() * 4);
 		while (this.answers.length < 4) {
 			if (shownAnswer > 0) {

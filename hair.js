@@ -55,22 +55,46 @@ export function compose(state, component, reuseKey) {
 	return new ComposeSpecification(state, component, reuseKey);
 }
 
-// add an event listener as a child of instantiated elements
+// add a DOM event listener as a child of instantiated elements
 export function listen(event, listener) {
 	return new ListenSpecification(event, listener, false);
 }
 
-// attach, detach, update - re-use references to the same function object to prevent extra updates
+export function onAttach() {
+	// run once when attached
+}
 
-// onAttach
-// onRemove
-// onUpdate
-// onRender (= attach or update)
-// onEvent (event, eventData)
+export function onRemove() {
+	// run once when removed
+}
 
-// onFrame (every renderframe while this component is present)
-// onDelay (after render once)
-// onTimer (immediately and after every X seconds)
+export function onUpdate() {
+	// run whenever this component is created or updated 
+}
+
+export function onBroadcast(event, listener, ...reuseKeys) {
+	// receive arbitrary events through the context tree
+	return new ContextListenerSpecification('broadcast', (contextListener) => {
+		contextListener.onBroadcast = (event, eventData) => {
+			if (event == event) {
+				listener(contextListener.context, contextListener.element, eventData);
+			}
+		}
+	}, ...reuseKeys);
+}
+
+export function onDelay() {
+	// action X seconds after this component exists (if it still exists)
+}
+
+export function onTimer() {
+	// repeat every X seconds while this component exists
+}
+
+export function onFrame() {
+	// run every animation while this component exists
+}
+
 // context.addDisposable
 
 // as a convenience provide built in element spec generators for common elements
@@ -153,6 +177,15 @@ class ListenSpecification extends ComponentSpecification {
 		this.event = event;
 		this.listener = listener;
 	}
+}
+
+class ContextListenerSpecification extends ComponentSpecification {
+	constructor (type, configurator, ...reuseKeys) {
+		super();
+		this.type = type;
+		this.configurator = configurator;
+		this.reuseKeys = [...reuseKeys];
+	}	
 }
 
 
@@ -271,10 +304,14 @@ class RenderContext {
 		removeWatcher(this);
 	}
 
-	dispatch (event, data) {
-		// TODO: dispatch through children
-		// or dispatch through parents
-		// onMount, onUpdate, on
+	broadcast (event, data) {
+		for (const attachment of this.attachments) {
+			if (attachment instanceof SubContextAttachment) {
+				attachment.context.broadcast(event, data);
+			} else if (attachment instanceof ContextListenerAttachment) {
+				attachment.onBroadcast?.(event, data);
+			}
+		}
 	}
 
 	// recursive process to expand the components and apply them to the DOM
@@ -323,6 +360,9 @@ class RenderContext {
 
 		} else if (component instanceof ListenSpecification) {
 			renderPhase.findOrCreateDOMListener(this, parent, component.event, component.listener);
+			
+		} else if (component instanceof ContextListenerSpecification) {
+			renderPhase.findOrCreateContextListener(this, parent, component.type, component.configurator, component.reuseKeys);
 
 		} else if (typeof component === 'function') {
 			this.#apply(parent, state, component(state), renderPhase);
@@ -346,7 +386,9 @@ class RenderContext {
 		this.attachments = renderPhase.attachments;
 		// signal attachment on new attachments
 		for (const attachment of renderPhase.newAttachments) {
-			attachment.attach();
+			if (attachment instanceof ContextListenerAttachment) {
+				attachment.onAttach?.();
+			}
 		}
 	}
 
@@ -457,6 +499,18 @@ class RenderPhase {
 
 		return this.addAttachment(new DOMListenerAttachment(context, parent, event, listener), keys);
 	}
+	
+	findOrCreateContextListener (context, element, type, configurator, reuseKeys) {
+		const keys = [ context, element, type, ...reuseKeys ];
+		const existing = this.find(ContextListenerAttachment, keys);
+		if (existing) {
+			return existing;
+		}
+		
+		const contextListener = new ContextListenerAttachment(context, element, type);
+		configurator(contextListener);
+		return this.addAttachment(contextListener, keys);		
+	}
 
 	find (attachmentType, keys) {
 		// NOTE: this linear search might be very inefficient on large components or long lists
@@ -491,7 +545,6 @@ class RenderPhase {
 
 class RenderAttachment {
 	// be prepared to let go of your attachments
-	attach () {}
 	remove () {}
 }
 
@@ -539,9 +592,6 @@ class DOMListenerAttachment extends RenderAttachment {
 		this.eventName = eventName;
 		this.handler = handler;
 		this.wrappedHandler = (evt) => { this.handler(context, element, evt); }
-	}
-
-	attach () {
 		this.element.addEventListener(this.eventName, this.wrappedHandler);
 	}
 
@@ -552,8 +602,23 @@ class DOMListenerAttachment extends RenderAttachment {
 	}
 }
 
-class ContextListenerAttachment {
-
+class ContextListenerAttachment extends RenderAttachment {
+	constructor (context, element, type) {
+		super();
+		this.context = context;
+		this.element = element;
+		this.type = type;
+	}
+	
+	// set these optional listeners	
+	// .onAttach?.(context, element, state)
+	// .onUpdate?.(context, element, state)
+	// .onRemove?.(context, element)
+	// .onBroadcast?.(context, element, event, eventData)
+	
+	remove () {
+		this.onRemove?.(this, this.element);
+	}
 }
 
 // -- setting properties that need specific handling ------------------------

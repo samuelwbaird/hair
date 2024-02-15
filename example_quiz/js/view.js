@@ -8,6 +8,13 @@ export function mainMenuView (app) {
 		h.h1('Example Quiz App'),
 		h.div({ class: 'button-holder' }, h.compose(app.levels, mainMenuButton)),
 		h.p('This app presents simple example quizzes using maths questions with multichoice answers, as an example of structuring multiple views and features like timers.'),
+		
+		// broadcast example
+		h.div({ class: 'fade-cover' }, h.onBroadcast('fadeout', (context, element) => {
+			// block interaction and fade to white over the top
+			element.style.pointerEvents = 'all';
+			element.style.opacity = 1;
+		})),
 	];
 }
 
@@ -28,10 +35,6 @@ export function quizView (quiz) {
 }
 
 function questionView (quiz, question) {
-	if (!question) {
-		return;
-	}
-		
 	if (question.selectedAnswer != null) {
 		return [
 			h.h2(question.text),
@@ -66,10 +69,6 @@ function questionView (quiz, question) {
 // -- results -------------------------------------------
 
 function resultsOverlay (results) {
-	if (!results) {
-		return;
-	}
-	
 	return [
 		h.button('Return', h.listen('click', (context) => { context.get('controller').navMainMenu(); })),
 	];
