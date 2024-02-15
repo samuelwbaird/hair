@@ -98,7 +98,25 @@ function timerView (timer) {
 // -- results -------------------------------------------
 
 function resultsOverlay (results) {
-	return [
-		h.button('Return', h.listen('click', (context) => { context.get('app').navMainMenu(); })),
-	];
+	return h.div({ class: 'results-holder' }, [
+		h.p('You got', delayedAppearance(0.25)),
+		h.p(results.correct + ' out of ' + results.total, { class: 'results' }, delayedAppearance(0.5)),
+		h.button('OK', { class: 'answer' }, [
+			h.listen('click', (context) => { context.get('app').navMainMenu(); }),
+			delayedAppearance(1.5),
+		]),
+	]);
+}
+
+// give a delayed appearance functionality to an element
+function delayedAppearance(delay) {
+	return h.onContext((contextListener) => {
+		let cancelToken = null;
+		contextListener.onAttach = (context, element) => {
+			element.style.opacity = 0;
+			cancelToken = h.delay(delay, () => {
+				element.style.opacity = 1;
+			}, contextListener);
+		}
+	});
 }

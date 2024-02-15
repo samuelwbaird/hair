@@ -29,7 +29,7 @@ export class QuizModel {
 		
 		// once all the questions are done generate the results
 		if (!this.currentQuestion && !this.results) {
-			this.results = new QuizResults();
+			this.results = new QuizResults(this);
 		}
 		h.signal(this);
 	}
@@ -118,5 +118,15 @@ class QuizAnswer {
 }
 
 class QuizResults {
+	
+	constructor (quiz) {
+		this.correct = 0;
+		for (const question of quiz.questions) {
+			if (question.selectedAnswer?.correct) {
+				this.correct++;
+			}
+		}
+		this.total = quiz.questions.length;
+	}
 	
 }

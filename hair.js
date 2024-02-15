@@ -99,7 +99,7 @@ export function onDelay (time, listener, ...reuseKeys) {
 		contextListener.onAttach = (context, element) => {
 			token = delay(time, () => {
 				listener(context, element);
-			}, 0, context);
+			}, contextListener);
 		};
 		contextListener.onRemove = () => {
 			cancel(token);
@@ -114,7 +114,7 @@ export function onTimer (time, listener, ...reuseKeys) {
 		contextListener.onAttach = (context, element) => {
 			token = timer(time, () => {
 				listener(context, element);
-			}, 0, context);
+			}, contextListener);
 		};
 		contextListener.onRemove = () => {
 			cancel(token);
@@ -129,16 +129,21 @@ export function onFrame (listener, ...reuseKeys) {
 		contextListener.onAttach = (context, element) => {
 			token = onEveryFrame(() => {
 				listener(context, element);
-			}, 0, context);
+			}, contextListener);
 		};
 		contextListener.onRemove = () => {
 			cancel(token);
 		};
 	}, ...reuseKeys);
-	
 }
 
-// context.addDisposable
+export function onContext (configurator, ...reuseKeys) {
+	return new ContextListenerSpecification('general', (contextListener) => {
+		// use contextListener, contextListener.context, and contextListener.element
+		// and set onAttach, onRemove, onUpdate, onBroadcast handlers
+		configurator(contextListener);
+	});
+}
 
 // as a convenience provide built in element spec generators for common elements
 export function elementFactory (type) {
@@ -236,8 +241,6 @@ class ContextListenerSpecification extends ComponentSpecification {
 // map the instantiated DOM objects to the components that created them
 // helping to support events, callbacks, lifecycle and updates
 
-const TIMER_PHASE_MODEL_UPDATES = 1;
-
 // the context for a component having been rendered to the DOM
 class RenderContext {
 
@@ -325,7 +328,7 @@ class RenderContext {
 		// allow signals to trigger an update
 		watch(state, () => {
 			this.updateIsRequested = state;
-			onNextFrame(() => { this.consolidatedUpdateFromSignals(); }, TIMER_PHASE_MODEL_UPDATES, this);
+			onNextFrame(() => { this.consolidatedUpdateFromSignals(); }, this);
 		}, this);
 	}
 
@@ -593,7 +596,9 @@ class RenderPhase {
 
 class RenderAttachment {
 	// be prepared to let go of your attachments
-	remove () {}
+	remove () {
+		markObjectAsDisposed(this);
+	}
 }
 
 class SubContextAttachment extends RenderAttachment {
@@ -603,6 +608,7 @@ class SubContextAttachment extends RenderAttachment {
 	}
 
 	remove () {
+		super.remove();
 		this.context.dispose();
 		this.context = null;
 	}
@@ -615,6 +621,7 @@ class ElementAttachment extends RenderAttachment {
 	}
 
 	remove () {
+		super.remove();
 		markObjectAsDisposed(this.element);
 		this.element.remove();
 		this.element = null;
@@ -628,6 +635,7 @@ class TextAttachment extends RenderAttachment {
 	}
 
 	remove () {
+		super.remove();
 		this.textNode.remove();
 		this.textNode = null;
 	}
@@ -644,6 +652,7 @@ class DOMListenerAttachment extends RenderAttachment {
 	}
 
 	remove () {
+		super.remove();
 		this.element.removeEventListener(this.eventName, this.wrappedHandler);
 		this.element = null;
 		this.handler = null;
@@ -665,6 +674,7 @@ class ContextListenerAttachment extends RenderAttachment {
 	// .onBroadcast?.(context, element, event, eventData)
 	
 	remove () {
+		super.remove();
 		this.onRemove?.(this, this.element);
 	}
 }
@@ -792,9 +802,8 @@ class Watcher {
 
 const delayedActions = [];
 
-export function delay (seconds, action, phase, owner, repeats = false) {
-	phase = phase ?? 0;
-	const delayedAction = new DelayedAction(Date.now() + (seconds * 1000), action, phase, owner, (repeats ? seconds : false));
+export function delay (seconds, action, owner) {
+	const delayedAction = new DelayedAction(Date.now() + (seconds * 1000), action, owner);
 	delayedActions.push(delayedAction);
 	// sort the upcoming actions to the end of the list
 	delayedActions.sort((a, b) => { return b.time - a.time; });
@@ -802,23 +811,22 @@ export function delay (seconds, action, phase, owner, repeats = false) {
 	return delayedAction;
 }
 
-export function timer (seconds, action, phase, owner) {
-	return delay(seconds, action, phase, owner, true);
+export function timer (seconds, action, owner) {
+	const delayedAction = delay(seconds, action, owner);
+	delayedAction.repeat = seconds;
+	return delayedAction;
 }
 
-export function onNextFrame (action, phase, owner) {
-	phase = phase ?? 0;
-	const delayedAction = new DelayedAction(0, action, phase, owner);
+export function onNextFrame (action, owner) {
+	const delayedAction = new DelayedAction(0, action, owner);
 	delayedActions.push(delayedAction);
 	requestFrameTimer();
 	return delayedAction;
 }
 
-export function onEveryFrame (action, phase, owner) {
-	phase = phase ?? 0;
-	const delayedAction = new DelayedAction(0, action, phase, owner, 0);
-	delayedActions.push(delayedAction);
-	requestFrameTimer();
+export function onEveryFrame (action, owner) {
+	const delayedAction = onNextFrame(action, owner);
+	delayedAction.repeat = 0;
 	return delayedAction;	
 }
 
@@ -878,17 +886,18 @@ function _animationFrame () {
 	const toBeActioned = [];
 	const toBeRepeated = [];
 	while (delayedActions.length > 0 && delayedActions[delayedActions.length - 1].time <= now) {
-		const action = delayedActions.pop();
-		toBeActioned.push(action);
+		const delayed = delayedActions.pop();
+		toBeActioned.push(delayed);
 		// does this action have a repeat built in
-		if (typeof action.repeat == 'number') {
-			toBeRepeated.push(action);
+		if (typeof delayed.repeat == 'number' && !isObjectDisposed(delayed.owner)) {
+			toBeRepeated.push(delayed);
 		}
 	}
+	// reschedule repeating actions
 	if (toBeRepeated.length > 0) {
-		for (const action of toBeRepeated) {
-			action.time = now + (action.repeat * 1000);
-			delayedActions.push(action);
+		for (const delayed of toBeRepeated) {
+			delayed.time = now + (delayed.repeat * 1000);
+			delayedActions.push(delayed);
 		}
 		delayedActions.sort((a, b) => { return b.time - a.time; });
 	}
@@ -909,12 +918,16 @@ function _animationFrame () {
 }
 
 class DelayedAction {
-	constructor (time, action, phase, owner, repeat) {
+	constructor (time, action, owner, repeat) {
 		this.time = time;
 		this.action = action;
-		this.phase = phase;
 		this.owner = owner;
-		this.repeat = repeat ?? false;
+		
+		// override this with a number to set a recurring delay to repeat the event after the first time it is called
+		this.repeat = false;
+
+		// override this with another number to control how timer events are sorted within the same timeslice
+		this.phase = 0;
 	}
 }
 

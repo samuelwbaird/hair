@@ -104,14 +104,16 @@ Done
  * Can we do more efficient moving through tracking the insert before target rather than the index
  * Dispose cycle through context tree
  * Information sharing through the context tree
+ * Listening to component lifecycle events or arbitrary event dispatch
+ * Recurring timer or set number of repeats support?
+ * Add additional examples
 
 In progress
 
- * Add additional examples
- * Listening to component lifecycle events or arbitrary event dispatch
- * Recurring timer or set number of repeats support?
+ * More documentation, overview and how it hangs together
+ * Add JSDoc markup throughout
  
 To do
 
+ * Property tweening...
  * More efficient handling of long lists or large components (multi key dictionary instead of array)
- * Add JSDoc markup throughout

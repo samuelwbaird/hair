@@ -136,3 +136,15 @@ div.timer-holder {
 progress {
 	width: 400px;
 }
+
+div.results-holder {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 40px;
+}
+
+p.results {
+	font-size: 25px;
+	margin-bottom: 30px;
+}
