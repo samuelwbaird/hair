@@ -105,6 +105,11 @@ function resultsOverlay (results) {
 			h.listen('click', (context) => { context.get('app').navMainMenu(); }),
 			delayedAppearance(1.5),
 		]),
+		h.div({ class: 'fade-cover' }, h.onBroadcast('fadeout', (context, element) => {
+			// block interaction and fade to white over the top
+			element.style.pointerEvents = 'all';
+			element.style.opacity = 1;
+		})),
 	]);
 }
 

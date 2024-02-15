@@ -4,6 +4,10 @@ import * as hair from '../../hair.js';
 import * as model from './model.js';
 import * as view from './view.js';
 
+export function delay (time) {
+	return new Promise(res => setTimeout(res, time * 1000));
+}
+
 export default class QuizApp {
 
 	constructor (rootDOM) {
@@ -24,15 +28,13 @@ export default class QuizApp {
 	}
 	
 	startLevel (quiz) {
-		//fade out the menu
-		this.rootView.broadcast('fadeout');
-		hair.delay(0.25, () => {
-			this.#setMainView(quiz, view.quizView);
-		});
+		this.#setMainView(quiz, view.quizView);
 	}
 	
-	#setMainView(model, view) {
+	async #setMainView(model, view) {
 		if (this.rootView) {
+			this.rootView.broadcast('fadeout');
+			await delay(0.25);
 			this.rootView.dispose();
 			this.rootView = null;
 		}
