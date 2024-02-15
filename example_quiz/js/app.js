@@ -12,7 +12,7 @@ export default class QuizApp {
 	}
 	
 	navMainMenu () {
-		this.#setTopLevel({ levels: this.getLevels() }, view.mainMenuView);
+		this.#setMainView({ levels: this.getLevels() }, view.mainMenuView);
 	}
 	
 	getLevels () {
@@ -27,18 +27,18 @@ export default class QuizApp {
 		//fade out the menu
 		this.rootView.broadcast('fadeout');
 		hair.delay(0.25, () => {
-			this.#setTopLevel(quiz, view.quizView);
+			this.#setMainView(quiz, view.quizView);
 		});
 	}
 	
-	#setTopLevel(model, view) {
+	#setMainView(model, view) {
 		if (this.rootView) {
 			this.rootView.dispose();
 			this.rootView = null;
 		}
 		
 		this.rootView = hair.render(this.rootDOM, model, view, {
-			controller: this,
+			app: this,
 		});
 	}
 	

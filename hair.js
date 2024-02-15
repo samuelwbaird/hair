@@ -7,7 +7,7 @@ let MOVE_COUNT = 0;
 let REQUEST_ANIMATION_FRAME_COUNT = 0;
 
 // top level request to render state to a parent using a component
-export function render(parent, state, component, initialContextValues = null) {
+export function render (parent, state, component, initialContextValues = null) {
 	// create a context (attached to this parent)
 	const context = new RenderContext(parent, component, initialContextValues);
 
@@ -19,7 +19,7 @@ export function render(parent, state, component, initialContextValues = null) {
 
 // construct an element spec for rendering with variable arguments
 // arguments in any order can include a string of text content, a property object, and child components
-export function element(type, arg1, arg2, arg3) {
+export function element (type, arg1, arg2, arg3) {
 	let properties = null;
 	let children = [];
 
@@ -51,28 +51,37 @@ export function element(type, arg1, arg2, arg3) {
 
 // mark a point within the render tree that is composed with its own render context or list
 // set a reuseKey object or string, to use that to make sure the same composed context is reused for the same purpose
-export function compose(state, component, reuseKey) {
+export function compose (state, component, reuseKey) {
 	return new ComposeSpecification(state, component, reuseKey);
 }
 
 // add a DOM event listener as a child of instantiated elements
-export function listen(event, listener) {
+export function listen (event, listener) {
 	return new ListenSpecification(event, listener, false);
 }
 
-export function onAttach() {
+export function onAttach (listener, ...reuseKeys) {
 	// run once when attached
+	return new ContextListenerSpecification('attach', (contextListener) => {
+		contextListener.onAttach = listener;
+	}, ...reuseKeys);
 }
 
-export function onRemove() {
+export function onRemove (listener, ...reuseKeys) {
 	// run once when removed
+	return new ContextListenerSpecification('remove', (contextListener) => {
+		contextListener.onRemove = listener;
+	}, ...reuseKeys);
 }
 
-export function onUpdate() {
+export function onUpdate (listener, ...reuseKeys) {
 	// run whenever this component is created or updated 
+	return new ContextListenerSpecification('update', (contextListener) => {
+		contextListener.onUpdate = listener;
+	}, ...reuseKeys);
 }
 
-export function onBroadcast(event, listener, ...reuseKeys) {
+export function onBroadcast (event, listener, ...reuseKeys) {
 	// receive arbitrary events through the context tree
 	return new ContextListenerSpecification('broadcast', (contextListener) => {
 		contextListener.onBroadcast = (event, eventData) => {
@@ -83,22 +92,56 @@ export function onBroadcast(event, listener, ...reuseKeys) {
 	}, ...reuseKeys);
 }
 
-export function onDelay() {
+export function onDelay (time, listener, ...reuseKeys) {
 	// action X seconds after this component exists (if it still exists)
+	return new ContextListenerSpecification('delay', (contextListener) => {
+		let token = null;
+		contextListener.onAttach = (context, element) => {
+			token = delay(time, () => {
+				listener(context, element);
+			}, 0, context);
+		};
+		contextListener.onRemove = () => {
+			cancel(token);
+		};
+	}, ...reuseKeys);
 }
 
-export function onTimer() {
+export function onTimer (time, listener, ...reuseKeys) {
 	// repeat every X seconds while this component exists
+	return new ContextListenerSpecification('timer', (contextListener) => {
+		let token = null;
+		contextListener.onAttach = (context, element) => {
+			token = timer(time, () => {
+				listener(context, element);
+			}, 0, context);
+		};
+		contextListener.onRemove = () => {
+			cancel(token);
+		};
+	}, ...reuseKeys);
 }
 
-export function onFrame() {
+export function onFrame (listener, ...reuseKeys) {
 	// run every animation while this component exists
+	return new ContextListenerSpecification('frame', (contextListener) => {
+		let token = null;
+		contextListener.onAttach = (context, element) => {
+			token = onEveryFrame(() => {
+				listener(context, element);
+			}, 0, context);
+		};
+		contextListener.onRemove = () => {
+			cancel(token);
+		};
+	}, ...reuseKeys);
+	
 }
 
 // context.addDisposable
 
 // as a convenience provide built in element spec generators for common elements
-export function elementFactory(type) {
+export function elementFactory (type) {
 	return function (arg1, arg2, arg3) {
 		return element(type, arg1, arg2, arg3);
 	}
@@ -219,7 +262,7 @@ class RenderContext {
 	}
 
 	// component refreshed on reuse
-	updateComponent(component) {
+	updateComponent (component) {
 		this.component = component;
 	}
 
@@ -387,7 +430,12 @@ class RenderContext {
 		// signal attachment on new attachments
 		for (const attachment of renderPhase.newAttachments) {
 			if (attachment instanceof ContextListenerAttachment) {
-				attachment.onAttach?.();
+				attachment.onAttach?.(attachment.context, attachment.element);
+			}
+		}
+		for (const attachment of this.attachments) {
+			if (attachment instanceof ContextListenerAttachment) {
+				attachment.onUpdate?.(attachment.context, attachment.element);
 			}
 		}
 	}
@@ -611,8 +659,8 @@ class ContextListenerAttachment extends RenderAttachment {
 	}
 	
 	// set these optional listeners	
-	// .onAttach?.(context, element, state)
-	// .onUpdate?.(context, element, state)
+	// .onAttach?.(context, element)
+	// .onUpdate?.(context, element)
 	// .onRemove?.(context, element)
 	// .onBroadcast?.(context, element, event, eventData)
 	
@@ -744,19 +792,21 @@ class Watcher {
 
 const delayedActions = [];
 
-export function delay(seconds, action, phase, owner) {
+export function delay (seconds, action, phase, owner, repeats = false) {
 	phase = phase ?? 0;
-	const delayedAction = new DelayedAction(Date.now() + (seconds * 1000), action, phase, owner);
+	const delayedAction = new DelayedAction(Date.now() + (seconds * 1000), action, phase, owner, (repeats ? seconds : false));
 	delayedActions.push(delayedAction);
 	// sort the upcoming actions to the end of the list
-	delayedActions.sort((a, b) => {
-		return b.time - a.time;
-	});
+	delayedActions.sort((a, b) => { return b.time - a.time; });
 	requestFrameTimer();
 	return delayedAction;
 }
 
-export function onNextFrame(action, phase, owner) {
+export function timer (seconds, action, phase, owner) {
+	return delay(seconds, action, phase, owner, true);
+}
+
+export function onNextFrame (action, phase, owner) {
 	phase = phase ?? 0;
 	const delayedAction = new DelayedAction(0, action, phase, owner);
 	delayedActions.push(delayedAction);
@@ -764,10 +814,19 @@ export function onNextFrame(action, phase, owner) {
 	return delayedAction;
 }
 
-// interval
-// repeat
+export function onEveryFrame (action, phase, owner) {
+	phase = phase ?? 0;
+	const delayedAction = new DelayedAction(0, action, phase, owner, 0);
+	delayedActions.push(delayedAction);
+	requestFrameTimer();
+	return delayedAction;	
+}
 
-export function cancel(owner) {
+export function cancel (owner) {
+	if (!owner) {
+		return;
+	}
+	
 	let i = 0;
 	while (i < delayedActions.length) {
 		const check = delayedActions[i];
@@ -783,7 +842,7 @@ const READY_TIME = 50;			// how many ms ahead of the requested time slot do we s
 let frameIsRequested = false;	// is an animationFrameRequest for the next frame already in play?
 let longDelayTimeout = false;	// is a timeout for delayed animation frames already in play?
 
-function requestFrameTimer() {
+function requestFrameTimer () {
 	if (frameIsRequested || delayedActions.length == 0) {
 		return;
 	}
@@ -809,7 +868,7 @@ function requestFrameTimer() {
 	longDelayTimeout = setTimeout(requestFrameTimer, (next - now) - READY_TIME);
 }
 
-function _animationFrame() {
+function _animationFrame () {
 	if (MONITOR_DOM_UPDATES) {
 		REQUEST_ANIMATION_FRAME_COUNT++;
 	}
@@ -817,8 +876,21 @@ function _animationFrame() {
 	// set aside all actions now due
 	const now = Date.now();
 	const toBeActioned = [];
+	const toBeRepeated = [];
 	while (delayedActions.length > 0 && delayedActions[delayedActions.length - 1].time <= now) {
-		toBeActioned.push(delayedActions.pop());
+		const action = delayedActions.pop();
+		toBeActioned.push(action);
+		// does this action have a repeat built in
+		if (typeof action.repeat == 'number') {
+			toBeRepeated.push(action);
+		}
+	}
+	if (toBeRepeated.length > 0) {
+		for (const action of toBeRepeated) {
+			action.time = now + (action.repeat * 1000);
+			delayedActions.push(action);
+		}
+		delayedActions.sort((a, b) => { return b.time - a.time; });
 	}
 
 	// make sure the next frame is correctly queued if required
@@ -826,9 +898,8 @@ function _animationFrame() {
 	requestFrameTimer();
 
 	// ordered by phase to allow more consistent dispatch ordering
-	toBeActioned.sort((a, b) => {
-		return a.phase - b.phase;
-	});
+	toBeActioned.sort((a, b) => { return a.phase - b.phase; });
+	
 	// dispatch all actions (ignoring disposed owners)
 	for (const delayed of toBeActioned) {
 		if (!isObjectDisposed(delayed.owner)) {
@@ -838,11 +909,12 @@ function _animationFrame() {
 }
 
 class DelayedAction {
-	constructor (time, action, phase, owner) {
+	constructor (time, action, phase, owner, repeat) {
 		this.time = time;
 		this.action = action;
 		this.phase = phase;
 		this.owner = owner;
+		this.repeat = repeat ?? false;
 	}
 }
 
@@ -852,16 +924,18 @@ class DelayedAction {
 
 const disposeSet = new WeakSet();
 
-export function markObjectAsDisposed(obj) {
+export function markObjectAsDisposed (obj) {
 	disposeSet.add(obj);
 }
 
-export function isObjectDisposed(obj) {
+export function isObjectDisposed (obj) {
 	if (!obj) {
 		return false;
 	}
 	return disposeSet.has(obj);
 }
+
+// -- debug monitoring for render efficiency ----------------------------------------
 
 if (MONITOR_DOM_UPDATES) {
 	function showCount() {
@@ -871,7 +945,6 @@ if (MONITOR_DOM_UPDATES) {
 		CREATE_COUNT = 0;
 		MOVE_COUNT = 0;
 		REQUEST_ANIMATION_FRAME_COUNT = 0;
-		delay(10, showCount);
 	}
-	delay(10, showCount);	
+	timer(10, showCount);
 }

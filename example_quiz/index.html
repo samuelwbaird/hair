@@ -10,15 +10,15 @@
 <script type="module" charset="UTF-8">
 
 	import * as hair from '../hair.js';
-	import QuizApp from './js/controller.js';
+	import QuizApp from './js/app.js';
 	
 	// A simple quiz example, the content is simple maths questions presented as multi choice options
 	// The example shows some navigation between different screens, timers and transitions through multiple states
 		
 	// -- render the app in place ---------------------------------
 	const root = document.getElementById('app');
-	const controller = new QuizApp(root);
-	controller.navMainMenu();
+	const app = new QuizApp(root);
+	app.navMainMenu();
 	
 </script>
 </body>

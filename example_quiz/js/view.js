@@ -8,7 +8,7 @@ export function mainMenuView (app) {
 		h.h1('Example Quiz App'),
 		h.div({ class: 'button-holder' }, h.compose(app.levels, mainMenuButton)),
 		h.p('This app presents simple example quizzes using maths questions with multichoice answers, as an example of structuring multiple views and features like timers.'),
-		
+				
 		// broadcast example
 		h.div({ class: 'fade-cover' }, h.onBroadcast('fadeout', (context, element) => {
 			// block interaction and fade to white over the top
@@ -35,41 +35,70 @@ export function quizView (quiz) {
 }
 
 function questionView (quiz, question) {
-	if (question.selectedAnswer != null) {
-		return [
+	return [
+		questionNumber(quiz, question),
+		h.div({ class: 'question-area' }, [
 			h.h2(question.text),
-			h.div({ class: 'answer-holder' }, h.compose(question.answers, (answer) => {
-				return h.button(answer.text, {
-					class: ['answer', (answer.correct ? 'correct' : '')], 
-					disabled: true,
-					style: {
-						opacity: (answer == question.selectedAnswer) ? 1 : 0.5,
-					}
-				});
-			})),
-		];
-		
-	} else {
-		return [
-			h.h2(question.text),
-			h.div({ class: 'answer-holder' }, h.compose(question.answers, (answer) => {
-				return h.button(answer.text, { class: 'answer' }, h.listen('click', () => {
+			question.hasBeenAnswered ? questionAnswered(quiz, question) : questionInPlay(quiz, question)
+		]),
+	];
+}
+
+function questionInPlay (quiz, question) {
+	let delay = 0;
+	return [
+		h.div({ class: 'answer-holder' }, h.compose(question.answers, (answer) => {
+			return h.button(answer.text, { class: 'answer', style: { opacity: 0 } }, [
+				h.listen('click', () => {
 					question.selectAnswer(answer);
-					h.delay(1, () => {
-						quiz.queueNextQuestion();
-					});
-				}))			
-			})),
-			// TODO: add visual time limit to answer
-			// TODO: add staggered appearance of each button
-		];
-	}
+				}),
+				// staggered appearance for each button
+				h.onDelay((++delay * 0.1), (context, element) => {
+					element.style.opacity = 1;
+				}),
+			]);
+		})),
+		h.compose(question.timer, timerView),
+	];	
+}
+
+function questionAnswered (quiz, question) {
+	return [
+		h.div({ class: 'answer-holder' }, h.compose(question.answers, (answer) => {
+			return h.button(answer.text, {
+				// show which button was selected and which was correct
+				class: ['answer', (answer.correct ? 'correct' : '')], 
+				disabled: true,
+				style: {
+					opacity: (answer == question.selectedAnswer) ? 1 : 0.5,
+				}
+			});
+		})),
+		// fade out
+		h.onDelay(1.5, (context, element) => {
+			element.style.opacity = 0;
+		}),
+	];
+}
+
+function questionNumber (quiz, question) {
+	const total = quiz.questions.length;
+	const index = (total - quiz.questions.indexOf(question));
+	return h.p('Question ' + index + '/' + total, { class: 'question-number' });
+}
+
+function timerView (timer) {
+	return h.div({ class: 'timer-holder' }, [
+		h.element('progress', { _id: 'progress', max: 100, value: 100 }, h.onFrame((context, element) => {
+			context.progress.value = timer.percentRemaining();
+		})),
+	]);
 }
 
 // -- results -------------------------------------------
 
 function resultsOverlay (results) {
 	return [
-		h.button('Return', h.listen('click', (context) => { context.get('controller').navMainMenu(); })),
+		h.button('Return', h.listen('click', (context) => { context.get('app').navMainMenu(); })),
 	];
 }
