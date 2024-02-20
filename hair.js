@@ -1037,8 +1037,15 @@ export function easeInOut(duration, arg1, arg2) {
 }
 
 export function interpolate(values, duration, arg1, arg2) {
-	const interpolateFunction = (v) => {
-		return v;
+	const max = (values.length - 1);
+	const interpolateFunction = (ratio) => {
+		const base = Math.floor(ratio * max);
+		const offset = (ratio * max) - base;
+		if (base >= max) {
+			return values[max];
+		} else {			
+			return (values[base] * (1 - offset)) + (values[base + 1] * offset);
+		}
 	};
 	return new TweenTiming(interpolateFunction, duration, arg1, arg2);
 }
@@ -1111,9 +1118,9 @@ class Tween {
 }
 
 const _linearFunction = (v) => { return v; };
-const _easeInFunction = (v) => { return v; };
-const _easeOutFunction = (v) => { return v; };
-const _easeInOutFunction = (v) => { return v; };
+const _easeInFunction = (v) => { return v * v; };
+const _easeOutFunction = (v) => { return 1 - ((1 - v) * (1 - v)); };
+const _easeInOutFunction = (v) => { return (_easeInFunction(v) * (1 - v)) + (_easeOutFunction(v) * v); }
 
 // timing = delay, duration, easing, onComplete
 class TweenTiming {
