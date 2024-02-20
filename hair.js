@@ -62,6 +62,10 @@
 //  globally available timer and event callback
 //  all callbacks occur during a requestAnimationFrame timeslot, but animation frames are only active when required
 //
+// Tweening
+//	tween(target, properties, timing, owner)
+//	transform, wrap a DOM element in a proxy object that can conveniently read and write the x,y,scale,rotation and opacity of a DOM object 
+//
 // Disposal markObjectAsDisposed, isObjectDisposed
 //	arbitrarily mark any object as disposed
 //	used to check where delayed actions and watched signals should be ignored if related to outdated renders
@@ -1000,6 +1004,153 @@ class DelayedAction {
 	}
 }
 
+// -- tweening ----------------------------------------------------------------------
+
+export function tween(target, properties, timing, owner = null) {
+	if (typeof timing == 'number') {
+		timing = linear(timing);
+	}
+	
+	return new Tween(target, properties, timing, owner)
+}
+
+// variable argument options
+// linear(5)								// 5 second transition
+// linear(5, 2)								// 5 second transition, 2 second delay before beginning
+// linear(5, () => { afterComplete() })		// 5 second transition, onComplete
+// linear(5, 2, () => { afterComplete() })	// 5 second transition, 2 second delay, onComplete
+
+export function linear(duration, arg1, arg2) {
+	return new TweenTiming(_linearFunction, duration, arg1, arg2);
+}
+
+export function easeIn(duration, arg1, arg2) {
+	return new TweenTiming(_easeInFunction, duration, arg1, arg2);	
+}
+
+export function easeOut(duration, arg1, arg2) {
+	return new TweenTiming(_easeOutFunction, duration, arg1, arg2);
+}
+
+export function easeInOut(duration, arg1, arg2) {
+	return new TweenTiming(_easeInOutFunction, duration, arg1, arg2);
+}
+
+export function interpolate(values, duration, arg1, arg2) {
+	const interpolateFunction = (v) => {
+		return v;
+	};
+	return new TweenTiming(interpolateFunction, duration, arg1, arg2);
+}
+
+class Tween {
+	constructor (target, properties, timing, owner) {
+		this.target = target;
+		this.timing = timing;
+		this.owner = owner;
+		this.propertiesRequested = properties;
+		if (timing.delay == 0) {
+			this.#begin();
+		} else {
+			delay(timing.delay, () => { this.#begin(); }, owner);
+		}
+	}
+	
+	#begin () { 
+		this.startTime = Date.now();
+		this.properties = {}
+		for (const k in this.propertiesRequested) {
+			this.properties[k] = captureTweenProperty(this.target, k, this.propertiesRequested[k]);
+		}
+		this.timer = onEveryFrame(() => {
+			const now = Date.now();
+			this.#update(Math.max(0, Math.min(1, (now - this.startTime) / (this.timing.duration * 1000))));
+		}, this.owner);
+	}
+	
+	#update (transition) {
+		if (isObjectDisposed(this) || isObjectDisposed(this.owner)) {
+			return;
+		}
+		
+		const ratio = this.timing.curveFunction(transition);
+		const inverse = 1 - ratio;
+
+		for (const k in this.properties) {
+			const prop = this.properties[k];
+			this.target[k] = ((prop.initial * inverse) + (prop.final * ratio)) + prop.suffix;
+		}
+
+		if (transition >= 1) {
+			if (this.onComplete) {
+				this.onComplete();
+			}
+			this.cancel();
+			return;
+		}
+	}
+	
+	complete () {
+		if (isObjectDisposed(this) || isObjectDisposed(this.owner)) {
+			return;
+		}
+		this.#update(1);
+	}
+	
+	cancel () {
+		if (this.timer) {
+			cancel(this.timer);
+			this.timer = null;
+		}
+		this.target = null;
+		this.onComplete = null;
+		this.properties = null;
+		markObjectAsDisposed(this);
+	}
+	
+}
+
+const _linearFunction = (v) => { return v; };
+const _easeInFunction = (v) => { return v; };
+const _easeOutFunction = (v) => { return v; };
+const _easeInOutFunction = (v) => { return v; };
+
+// timing = delay, duration, easing, onComplete
+class TweenTiming {
+	
+	constructor (curveFunction, duration, arg1, arg2) {
+		this.curveFunction = curveFunction;
+		this.duration = duration;
+		this.delay = 0;
+		this.onComplete = null;
+		if (typeof arg1 == 'number') {
+			this.delay = arg1;
+		} else if (typeof arg2 == 'number') {
+			this.delay = arg2;
+		}
+		if (typeof arg1 == 'function') {
+			this.onComplete = arg1;
+		} else if (typeof arg2 == 'function') {
+			this.onComplete = arg2;
+		}
+	}
+	
+}
+
+function captureTweenProperty (target, property, final) {
+	// capture if this property has a non-numeric suffix (eg. 90px or 10%)
+	let initial = target[property];
+	let suffix = 0;
+	if (typeof initial == 'string') {
+		const numeric = initial.match(/^[\d\.\-]+/);
+		if (numeric) {
+			suffix = initial.substring(numeric[0].length) ?? '';
+			initial = parseFloat(numeric[0]);
+		}
+	}
+	return { initial : initial, final : final, suffix: suffix };
+}
+
 // -- transform (dom) ---------------------------------------------------------------
 // wrap a DOM element with an object that makes it easy to manipulate its style transform properties
 // only the few most common 2D properties are supported
@@ -1015,7 +1166,6 @@ class Transform {
 		const style = getComputedStyle(element);
 		const matrix = style.transform
 		if (matrix && matrix != 'none') {
-			console.log(matrix);
 			const matrixValues = matrix.match(/matrix.*\((.+)\)/)[1].split(', ');
 			this.#x = Number.parseFloat(matrixValues[4]);
 			this.#y = Number.parseFloat(matrixValues[5]);
@@ -1048,7 +1198,6 @@ class Transform {
 	}
 	
 }
-
 
 // -- markObjectAsDisposed / isObjectDisposed ---------------------------------------
 // a globally available system to mark any object as disposed
