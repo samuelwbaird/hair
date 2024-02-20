@@ -1,10 +1,79 @@
-// -- public interface of the library ---------------------------------
+// hair.js
+// ===============================================================================
+//
+// state/model object ----------------⌝----------------------⌝----------------------⌝
+//                                    |                      |                      |
+// DOM parent ------------|           |                      |                      |
+//                        |--> [render context] --------------------------------------------->
+// [component spec]  -----⌟        <render>              <update>                <update>
+//                              [render phase]         [render phase]         [render phase]
+//
+// Component specs
+// strings, numbers, arrays and functions are all treated transparently as component specifications
+// arrays and functions are iterated or executed recursively to produce explicit component specifications
+//
+// Flexible arguments
+// Component specs for elements let you supply up to 3 arguments flexibly in any order
+// Objects arguments are assumed to be properties to apply to element eg { class: 'parent', disabled: true }
+// Number or string arguments are assumed to be text content of the element
+// Arrays or any single recognised component spec is assumed to be a child (recursively forming the full component spec)
+//
+// Special/active components
+// Functions are provided to create "special" components specs, eg. compose, listen, onDelay, or onAttach
+// These should be added as children of relevant elements, and allow callbacks to link functionality to the DOM at render time
+// 
+// Many components allow single or multiple "reuse keys" to provided in their spec
+// These keys can be any value, including strings and objects
+// When updating an already rendered view, DOM elements will only be reused if reuse keys match
+// If no reuse keys are provided then DOM elements will be re-used optimistically
+//
+// hair.js file layout:
+//
+// Top level export public functions to render views
+// 	render, element, compose, list
+//	onAttach, onRemove, onUpdate, onContext
+//	onBroadcast, onDelay, onTimer
+//
+// Component specification classes
+//	These data objects capture the specifications that will be used to produce or update the DOM in a render pass
+//
+// RenderContext
+//	captures the combination of a component spec and a DOM parent element and is created on first render
+//	the context can be retained and used to update the render with update state
+//	it will re-use and clean up elements as required to achieve this
+//
+// RenderPhase
+//	is created for each recursive render or update pass of a context
+//	tracks created and reused elements to merge and clean up changes at the end of each render
+// 
+// RenderAttachments
+//	objects created during render or update that attach functionality to a rendered DOM view
+//
+// Property Handlers
+//  eg. setPropertyHandler, applyClassList
+//	specialised handling of matching property names when applied to DOM elements
+//
+// Watcher, watch, signal, removeWatcher
+//	watch and signal allow components to "watch" any object for signals
+//	signalling on a state or model object will trigger views to updates
+//  can be used as simple event system, objects are tracked in WeakMaps to prevent interfering with garbage collection
+//
+// DelayedAction, delay, timer, onNextFrame, onEveryFrame
+//  globally available timer and event callback
+//  all callbacks occur during a requestAnimationFrame timeslot, but animation frames are only active when required
+//
+// Disposal markObjectAsDisposed, isObjectDisposed
+//	arbitrarily mark any object as disposed
+//	used to check where delayed actions and watched signals should be ignored if related to outdated renders
+//	objects are tracked in a WeakSet to prevent interfering with garbage collection
+//
+// Debug
+//	set MONITOR_DOM_UPDATES to true to trace a simple count of DOM objects created or moved during rendering
+//
+// ===============================================================================
 
-// log statistics on how many dom elements are being either created, or moved (since last log)
-const MONITOR_DOM_UPDATES = false;
-let CREATE_COUNT = 0;
-let MOVE_COUNT = 0;
-let REQUEST_ANIMATION_FRAME_COUNT = 0;
+
+// -- public interface of the library ---------------------------------
 
 // top level request to render state to a parent using a component
 export function render (parent, state, component, initialContextValues = null) {
@@ -931,6 +1000,56 @@ class DelayedAction {
 	}
 }
 
+// -- transform (dom) ---------------------------------------------------------------
+// wrap a DOM element with an object that makes it easy to manipulate its style transform properties
+// only the few most common 2D properties are supported
+export function transform (element) {
+	return new Transform(element);
+}
+
+class Transform {
+	#x; #y; #scale; #rotation; #opacity;
+	
+	constructor (element) {
+		this.element = element;
+		const style = getComputedStyle(element);
+		const matrix = style.transform
+		if (matrix && matrix != 'none') {
+			console.log(matrix);
+			const matrixValues = matrix.match(/matrix.*\((.+)\)/)[1].split(', ');
+			this.#x = Number.parseFloat(matrixValues[4]);
+			this.#y = Number.parseFloat(matrixValues[5]);
+			this.#scale = Math.sqrt(Math.pow(Number.parseFloat(matrixValues[0]), 2) + Math.pow(Number.parseFloat(matrixValues[2]), 2));
+			this.#rotation = Math.atan2(Number.parseFloat(matrixValues[1]), Number.parseFloat(matrixValues[0])) * (180 / Math.PI);
+		} else {
+			this.#x = 0; this.#y = 0; this.#scale = 1; this.#rotation = 0;
+		}
+		this.#opacity = Number.parseFloat(style.opacity);
+	}
+	
+	get x () { return this.#x; }
+	get y () { return this.#y; }
+	get scale () { return this.#scale; }
+	get rotation () { return this.#rotation; }
+	get opacity () { return this.#opacity; }
+
+	set x (value) { this.#x = value; this.#updateTransform(); }	
+	set y (value) { this.#y = value; this.#updateTransform(); }	
+	set scale (value) { this.#scale = value; this.#updateTransform(); }	
+	set rotation (value) { this.#rotation = value; this.#updateTransform(); }	
+	set opacity (value) { this.#opacity = value; this.#updateTransform(); }	
+	
+	#updateTransform () {
+		const radians = (this.#rotation * (Math.PI / 180));
+		const scale = this.#scale;
+		const transform = [ scale * Math.cos(radians), scale * Math.sin(radians), scale * Math.sin(radians) * -1, scale * Math.cos(radians), this.#x, this.#y ];
+		this.element.style.transform = 'matrix(' + transform.join(',') + ')';
+		this.element.style.opacity = Math.min(1, Math.max(0, this.opacity));
+	}
+	
+}
+
+
 // -- markObjectAsDisposed / isObjectDisposed ---------------------------------------
 // a globally available system to mark any object as disposed
 // disposed objects are ignored in timers and signals
@@ -949,6 +1068,12 @@ export function isObjectDisposed (obj) {
 }
 
 // -- debug monitoring for render efficiency ----------------------------------------
+
+// log statistics on how many dom elements are being either created, or moved (since last log)
+const MONITOR_DOM_UPDATES = false;
+let CREATE_COUNT = 0;
+let MOVE_COUNT = 0;
+let REQUEST_ANIMATION_FRAME_COUNT = 0;
 
 if (MONITOR_DOM_UPDATES) {
 	function showCount() {
