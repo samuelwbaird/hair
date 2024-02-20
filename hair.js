@@ -214,7 +214,7 @@ class ComposeSpecification extends ComponentSpecification {
 		super();
 		this.state = state;
 		this.component = component;
-		this.reuseKey = this.reuseKey ?? this.state;
+		this.reuseKey = reuseKey ?? this.state;
 	}
 }
 
@@ -959,5 +959,5 @@ if (MONITOR_DOM_UPDATES) {
 		MOVE_COUNT = 0;
 		REQUEST_ANIMATION_FRAME_COUNT = 0;
 	}
-	timer(10, showCount);
+	setInterval(showCount, 10 * 1000);
 }
