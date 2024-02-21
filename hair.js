@@ -574,7 +574,7 @@ class RenderPhase {
 		const keys = [ type, parent, state ];
 		const existing = this.find(ElementAttachment, keys);
 		if (existing) {
-			if (existing.element == insertBefore) {
+			if (existing.element == insertBefore || existing.element.nextSibling == insertBefore) {
 				this.parentOrder.set(parent, existing.element.nextSibling);
 			} else {
 				if (MONITOR_DOM_UPDATES) {
