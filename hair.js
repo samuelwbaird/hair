@@ -399,10 +399,12 @@ class RenderContext {
 		this.commit(renderPhase);
 
 		// allow signals to trigger an update
-		watch(state, () => {
-			this.updateIsRequested = state;
-			onNextFrame(() => { this.consolidatedUpdateFromSignals(); }, this);
-		}, this);
+		if (typeof state == 'object') {
+			watch(state, () => {
+				this.updateIsRequested = state;
+				onNextFrame(() => { this.consolidatedUpdateFromSignals(); }, this);
+			}, this);
+		}
 	}
 
 	consolidatedUpdateFromSignals () {
@@ -454,7 +456,7 @@ class RenderContext {
 
 		} else if (component instanceof ElementSpecification) {
 			// make the new element
-			const element = renderPhase.findOrCreateElement(component.type, parent, state);
+			const element = renderPhase.findOrCreateElement(component.type, parent, state, component.properties);
 
 			// apply the properties of this element
 			if (component.properties) {
@@ -565,7 +567,7 @@ class RenderPhase {
 		return sub;
 	}
 
-	findOrCreateElement (type, parent, state) {
+	findOrCreateElement (type, parent, state, properties) {
 		if (!this.parentOrder.has(parent)) {
 			this.parentOrder.set(parent, parent.firstChild);
 		}
