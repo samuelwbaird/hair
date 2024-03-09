@@ -619,7 +619,7 @@ class RenderPhase {
 		const keys = [ context, parent, event ];
 		const existing = this.find(DOMListenerAttachment, keys);
 		if (existing) {
-			existing.listener = listener;
+			existing.updateListener(listener);
 			return existing;
 		}
 
@@ -717,18 +717,22 @@ class TextAttachment extends RenderAttachment {
 }
 
 class DOMListenerAttachment extends RenderAttachment {
-	constructor (context, element, eventName, handler) {
+	constructor (context, element, eventName, listener) {
 		super();
 		this.element = element;
 		this.eventName = eventName;
-		this.handler = handler;
-		this.wrappedHandler = (evt) => { this.handler(context, element, evt); }
-		this.element.addEventListener(this.eventName, this.wrappedHandler);
+		this.listener = listener;
+		this.wrappedListener = (evt) => { this.listener(context, element, evt); }
+		this.element.addEventListener(this.eventName, this.wrappedListener);
+	}
+	
+	updateListener (listener) {
+		this.listener = listener;
 	}
 
 	remove () {
 		super.remove();
-		this.element.removeEventListener(this.eventName, this.wrappedHandler);
+		this.element.removeEventListener(this.eventName, this.wrappedListener);
 		this.element = null;
 		this.handler = null;
 	}
