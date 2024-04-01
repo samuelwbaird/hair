@@ -486,7 +486,7 @@ class RenderContext {
 			renderPhase.findOrCreateContextListener(this, parent, component.type, component.configurator, component.reuseKeys);
 
 		} else if (typeof component === 'function') {
-			this.#apply(parent, state, component(state), renderPhase);
+			this.#apply(parent, state, component(state, this), renderPhase);
 
 		} else if (component == null) {
 			// we can ignore
