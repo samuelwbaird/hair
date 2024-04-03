@@ -1,0 +1,95 @@
+<html>
+<head>
+	<title>h.js tweening example</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<style>
+		body {
+			padding: 20px;
+		}
+		
+		div.drop-area {
+			width: 320px;
+			height: 480px;
+			
+			border-width: 1px;
+			border-color: grey;
+			border-style: dashed;
+			border-radius: 5px;
+		    box-sizing: border-box;
+			
+			background-color: #f8f8f8;
+		    background-size: 40px 40px;
+		    background-image: radial-gradient(circle, #000000 1px, rgba(0, 0, 0, 0) 1px);
+		}
+		
+		div.box {
+			width: 40px;
+			height: 40px;
+			position: absolute;
+
+			border-radius: 5px;
+		    box-sizing: border-box;
+
+			background-color: 223377;
+		}
+	</style>
+</head>
+<body>
+<div id="app">
+</div>
+<script type="module" charset="UTF-8">
+	// use the library
+	import * as h from '../hair.js';
+	import * as ht from '../hair.tween.js';
+	
+	// a simple model, that is just a list of "box" objects with no important qualities
+	class Model {		
+		constructor () {
+			this.boxes = [];
+		}
+		
+		addNewBox () {
+			this.boxes.push({ startingX: (Math.random() * 280) });
+			h.signal(this.boxes);
+		}
+	}
+	
+	// a view for the box that tweens itself when first rendered
+	function boxView (box) {
+		return h.div({ class: 'box' }, h.onAttach(async (context, element) => {
+			// wrap the DOM element in a transform object that provides simple properties
+			// to update x, y, scale and rotation of an absolutely positioned DOM element
+			const boxTransform = ht.transform(element);
+			boxTransform.x = box.startingX;
+			boxTransform.y = 0;
+			
+			// to tween an object, give the object, the new properties, and then timing and sequence elements
+			// timing and sequence is an easing or curve of animation, the total time for the animation,
+			// then optionally a delay before the animation begins and a callback upon completing the animation
+
+			// sequence horizontal movement throughout in parallel
+			ht.tween(boxTransform, { x: Math.random() * 280 }, ht.linear(1.5));
+
+			// then two phases of a little bounce
+			ht.tween(boxTransform, { y: 440 }, ht.interpolate([0, 0.1, 0.3, 0.6, 1], 1));
+			await ht.asyncTween(boxTransform, { rotation: 180 }, ht.linear(1) );
+			
+			ht.tween(boxTransform, { y: 400 }, ht.interpolate([0, 0.75, 1, 0.75, 0], 0.5));
+			await ht.asyncTween(boxTransform, { rotation: 270 }, ht.linear(0.5) );
+		}));
+	}
+	
+	function appView (model) {
+		return h.div([
+			h.button('Drop Another Box', h.listen('click', () => { model.addNewBox(); })),
+			h.div({ class: 'drop-area' }, h.compose(model.boxes, boxView)),
+		]);
+	}
+		
+	// -- render the app in place ---------------------------------
+	const parent = document.getElementById('app');
+	const model = new Model();
+	const context = h.render(parent, model, appView);
+</script>
+</body>
+</html>
