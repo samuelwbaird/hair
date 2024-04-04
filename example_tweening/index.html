@@ -19,7 +19,7 @@
 			
 			background-color: #f8f8f8;
 		    background-size: 40px 40px;
-		    background-image: radial-gradient(circle, #000000 1px, rgba(0, 0, 0, 0) 1px);
+		    background-image: radial-gradient(circle, #777 1px, rgba(0, 0, 0, 0) 1px);
 		}
 		
 		div.box {
@@ -42,16 +42,46 @@
 	import * as h from '../hair.js';
 	import * as ht from '../hair.tween.js';
 	
-	// a simple model, that is just a list of "box" objects with no important qualities
+	// -- our model -----------------------------------------------
+	// really just a list of "box" objects with no important qualities
+	
 	class Model {		
 		constructor () {
 			this.boxes = [];
+			this.progressBar = new ProgressBarModel();
 		}
 		
 		addNewBox () {
 			this.boxes.push({ startingX: (Math.random() * 280) });
 			h.signal(this.boxes);
+			
+			// we can tween any object property, let's randomly tween the progress to a different value
+			ht.cancelTweensOf(this.progressBar);
+			ht.tween(this.progressBar, { progress: Math.random() }, ht.easeOut(1.5));
 		}
+	}
+	
+	class ProgressBarModel {		
+		#progress = 0;
+		
+		get progress() {
+			return this.#progress;
+		}
+		
+		set progress (value) {
+			this.#progress  = value;
+			h.signal(this);
+		}		
+	}
+	
+	// -- our view -----------------------------------------------
+	
+	function appView (model) {
+		return h.div([
+			h.button('Drop Another Box', { style: { marginBottom: '4px' }}, h.listen('click', () => { model.addNewBox(); })),
+			h.div({ class: 'drop-area' }, h.compose(model.boxes, boxView)),
+			h.compose(model.progressBar, progressView),
+		]);
 	}
 	
 	// a view for the box that tweens itself when first rendered
@@ -79,10 +109,9 @@
 		}));
 	}
 	
-	function appView (model) {
-		return h.div([
-			h.button('Drop Another Box', h.listen('click', () => { model.addNewBox(); })),
-			h.div({ class: 'drop-area' }, h.compose(model.boxes, boxView)),
+	function progressView (model) {
+		return h.div({ style: { height: '8px', width: '320px', backgroundColor: '#333', marginTop: '4px' }}, [
+			h.div({ style: { height: '8px', width: (320 * model.progress) + 'px', backgroundColor: '#888' }}),
 		]);
 	}
 		
