@@ -177,17 +177,16 @@ Done
  * Property tweening...
  * More documentation, overview and how it hangs together
  * Experiment, break code into multiple modules/areas of concern, making tweens optional
+ * Add a tween/transform example
 
 In progress
 
- * Add a tween/transform example
  * Maybe add an optional "phase" value to signal watchers
  * Allow watchers for animation frames (ie. that can trigger pre or post, without causing animation frames to be requested)
  
 To do
 
- * Optional PIXI integration
- * Add a pixi example
  * Consider a scoped, composable way to define CSS classes or defaults alongside the HTML elements (without needing to supply naming)
  * Maybe add JSDoc markup throughout
+ * Maybe PIXI integration?
  * More efficient handling of long lists or large components (multi key dictionary instead of array for quicker look up in RenderPhase.find)

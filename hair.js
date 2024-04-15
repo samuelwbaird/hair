@@ -135,11 +135,11 @@ export function onUpdate (listener, ...reuseKeys) {
 	}, ...reuseKeys);
 }
 
-export function onBroadcast (event, listener, ...reuseKeys) {
+export function onBroadcast (specificEvent, listener, ...reuseKeys) {
 	// receive arbitrary events through the context tree
 	return new ContextListenerSpecification('broadcast', (contextListener) => {
 		contextListener.onBroadcast = (event, eventData) => {
-			if (event == event) {
+			if (event == specificEvent) {
 				listener(contextListener.context, contextListener.element, eventData);
 			}
 		}
@@ -734,11 +734,11 @@ class ContextListenerAttachment extends RenderAttachment {
 	// .onAttach?.(context, element)
 	// .onUpdate?.(context, element)
 	// .onRemove?.(context, element)
-	// .onBroadcast?.(context, element, event, eventData)
+	// .onBroadcast?.(event, eventData)
 	
 	remove () {
 		super.remove();
-		this.onRemove?.(this, this.element);
+		this.onRemove?.(this.context, this.element);
 	}
 }
 
