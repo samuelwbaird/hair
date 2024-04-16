@@ -1,0 +1,25 @@
+<html>
+<head>
+	<title>hair-pixi.js example</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<style>
+		body {
+			padding: 20px;
+		}
+	</style>
+</head>
+<body>
+<div id="app">
+</div>
+<script type="module" charset="UTF-8">
+	import * as h from '../hair.js';
+	import * as app from './js/app.js';
+		
+	// -- render the app in place ---------------------------------
+	const parent = document.getElementById('app');
+	const context = h.render(parent, app.state, app.view);	
+	app.loadAssetsAndLaunch();
+
+</script>
+</body>
+</html>
