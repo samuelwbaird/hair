@@ -85,14 +85,16 @@ export function pixi_scene (sceneConstructor, ...reuseKeys) {
 	return hair.onContext((contextListener) => {
 		let scene = null;
 		contextListener.onAttach = (context, element) => {
-			const canvas = context.get('pixi_canvas');
-			if (!canvas) {
-				console.log('no canvas');
-				// throw new Error('There must be a pixi canvas within the context tree to create a scene.');
+			const pixi_canvas = context.get('pixi_canvas');
+			if (!pixi_canvas) {
+				throw new Error('There must be a pixi canvas within the context tree to create a scene.');
 			}			
-			scene = sceneConstructor();
+			scene = sceneConstructor(pixi_canvas);
 			// canvas.addScene(scene);
 			scene.begin();
+		};
+		contextListener.onBroadcast = (eventName, eventData) => {
+			scene.onBroadcast(eventName, eventData);			
 		};
 		contextListener.onRemove = (context, element) => {
 			if (scene) {
@@ -106,9 +108,8 @@ export function pixi_scene (sceneConstructor, ...reuseKeys) {
 export class PixiCanvas {
 	
 	constructor (canvas) {
-		
-	}
-	
+		this.canvas = canvas;
+	}	
 	
 	dispose () {
 		
@@ -118,8 +119,8 @@ export class PixiCanvas {
 
 export class PixiScene {
 	
-	constructor () {
-		
+	constructor (pixi_canvas) {
+		this.pixi_canvas = pixi_canvas;
 	}
 	
 	begin () {
@@ -145,6 +146,7 @@ export class PixiView {
 }
 
 export class PixiClip {
+	
 }
 
 export class TouchArea {
