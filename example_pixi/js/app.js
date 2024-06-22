@@ -32,45 +32,46 @@ export async function loadAssetsAndLaunch () {
 export function view (state) {
 	// a two layer system is used throughout, with a canvas layer and DOM ui
 	// the pixi canvas is set in the context, and automatically targetted by any pixi scene
-	if (!state.assetsAreLoaded) {
-		return loadingView;
-	} else {
-		return h.compose(state.game, gameView);
-	}
-}
-
-function loadingView () {
-	return h.div({ class: 'scene', }, [
-		h.p('loading...'),
-	]);
-}
-
-function gameView (game) {
 	return [
 		h.div({ class: 'layer' }, [
 			h.div({ class: 'scene' }, [
-				h.element('canvas', [
-					hp.pixi_canvas(),
-					hp.pixi_scene(() => { return new scene.CharacterScene(game.character); }),
-				]),
+				h.element('canvas', hp.pixi_canvas()),
 			]),
 		]),
 		h.div({ class: 'layer' }, [
 			h.div({ class: 'scene' }, [
-				h.compose(game.character, characterView),
-				h.button('Re-roll', h.listen('click', () => {
-					game.actionCreateNewCharacter();
-				})),
+				state.assetsAreLoaded ?
+					h.compose(state.game, gameView) :
+					loadingView
 			]),
 		]),
 	];
 }
 
-function characterView (character) {
-	return h.div({ class: 'character-ui' }, [
-		h.p(character.name),
-		h.p(character.role.name),
-	]);
+function loadingView () {
+	return [
+		hp.pixi_scene(() => { return new scene.LoadingScene(); }),
+		h.div({ class: 'loading-ui' }, [
+			h.div(),
+			h.div('Loading'),
+		]),
+	];
+}
+
+function gameView (game) {
+	return [
+		hp.pixi_scene(() => { return new scene.CharacterScene(game.character); }),
+		h.div({ class: 'character-ui' }, [
+			h.div(),
+			h.div(game.character.name),
+			h.div(game.character.role.name),
+			h.div([
+				h.button('Re-roll', h.listen('click', () => {
+					game.actionCreateNewCharacter();
+				})),
+			]),
+		]),				
+	];
 }
 
 // -- model -----------------------------------------------------------
