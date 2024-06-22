@@ -897,6 +897,14 @@ export function onEveryFrame (action, owner) {
 	return delayedAction;	
 }
 
+export function onAnyFrame (action, owner) {
+	const delayedAction = new DelayedAction(0, action, owner);
+	delayedActions.push(delayedAction);
+	delayedAction.repeat = 0;
+	delayedAction.doesNotRequestFrames = true;
+	return delayedAction;	
+}
+
 export function cancel (owner) {
 	if (!owner) {
 		return;
@@ -917,14 +925,13 @@ const READY_TIME = 50;			// how many ms ahead of the requested time slot do we s
 let frameIsRequested = false;	// is an animationFrameRequest for the next frame already in play?
 let longDelayTimeout = false;	// is a timeout for delayed animation frames already in play?
 
+// set a consistent time at the start of any timer events
+export let frameStartTime = Date.now();
+
 function requestFrameTimer () {
 	if (frameIsRequested || delayedActions.length == 0) {
 		return;
 	}
-
-	// work out if a long delay or short delay is needed next
-	const next = delayedActions[delayedActions.length - 1].time;
-	const now = Date.now();
 
 	// cancel any current timeout
 	if (longDelayTimeout) {
@@ -932,7 +939,21 @@ function requestFrameTimer () {
 		longDelayTimeout = false;
 	}
 
+	// work out if a long delay or short delay is needed next
+	let next = false;
+	let i = delayedActions.length;
+	while (--i >= 0) {
+		if (!delayedActions[i].doesNotRequestFrames) {
+			next = delayedActions[i].time;
+			break;
+		}
+	}
+	if (next === false) {
+		return;
+	}
+
 	// if the next action is soon then request an animation frame
+	const now = Date.now();
 	if (next - now < READY_TIME) {
 		frameIsRequested = true;
 		requestAnimationFrame(_animationFrame);
@@ -949,10 +970,10 @@ function _animationFrame () {
 	}
 	
 	// set aside all actions now due
-	const now = Date.now();
+	frameStartTime = Date.now();
 	const toBeActioned = [];
 	const toBeRepeated = [];
-	while (delayedActions.length > 0 && delayedActions[delayedActions.length - 1].time <= now) {
+	while (delayedActions.length > 0 && delayedActions[delayedActions.length - 1].time <= frameStartTime) {
 		const delayed = delayedActions.pop();
 		toBeActioned.push(delayed);
 		// does this action have a repeat built in
@@ -963,7 +984,7 @@ function _animationFrame () {
 	// reschedule repeating actions
 	if (toBeRepeated.length > 0) {
 		for (const delayed of toBeRepeated) {
-			delayed.time = now + (delayed.repeat * 1000);
+			delayed.time = frameStartTime + (delayed.repeat * 1000);
 			delayedActions.push(delayed);
 		}
 		delayedActions.sort((a, b) => { return b.time - a.time; });

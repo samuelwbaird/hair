@@ -103,14 +103,13 @@ class Tween {
 	}
 	
 	#begin () { 
-		this.startTime = Date.now();
+		this.startTime = hair.frameStartTime;
 		this.properties = {}
 		for (const k in this.propertiesRequested) {
 			this.properties[k] = captureTweenProperty(this.target, k, this.propertiesRequested[k]);
 		}
 		this.timer = hair.onEveryFrame(() => {
-			const now = Date.now();
-			this.#update(Math.max(0, Math.min(1, (now - this.startTime) / (this.timing.duration * 1000))));
+			this.#update(Math.max(0, Math.min(1, (hair.frameStartTime - this.startTime) / (this.timing.duration * 1000))));
 		}, this.owner);
 	}
 	
