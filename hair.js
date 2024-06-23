@@ -619,7 +619,7 @@ class RenderPhase {
 		
 		const contextListener = new ContextListenerAttachment(context, element, type);
 		configurator(contextListener);
-		return this.addAttachment(contextListener, keys);		
+		return this.addAttachment(contextListener, keys);
 	}
 
 	find (attachmentType, keys) {
@@ -927,6 +927,7 @@ let longDelayTimeout = false;	// is a timeout for delayed animation frames alrea
 
 // set a consistent time at the start of any timer events
 export let frameStartTime = Date.now();
+export let frameDeltaSeconds = 0;
 
 function requestFrameTimer () {
 	if (frameIsRequested || delayedActions.length == 0) {
@@ -970,7 +971,10 @@ function _animationFrame () {
 	}
 	
 	// set aside all actions now due
-	frameStartTime = Date.now();
+	const now = Date.now();
+	frameDeltaSeconds = (now - frameStartTime) / 1000.0;
+	frameStartTime = now;	
+	
 	const toBeActioned = [];
 	const toBeRepeated = [];
 	while (delayedActions.length > 0 && delayedActions[delayedActions.length - 1].time <= frameStartTime) {

@@ -63,6 +63,12 @@ canvas {
 	color: white;
 }
 
+.slug {
+	border-radius: 5px;
+	padding: 5px;
+	background-color: rgba(0, 0, 0, 0.25);
+}
+
 button {
 	align-self: center;
 	background-color: #fff;
