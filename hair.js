@@ -25,7 +25,7 @@
 //   RenderPhase
 //	   is created for each recursive render or update pass of a context
 //	   tracks created and reused elements to merge and clean up changes at the end of each render
-// 
+//
 //   RenderAttachments
 //	   objects created during render or update that attach functionality to a rendered DOM view
 //
@@ -129,7 +129,7 @@ export function onRemove (listener, ...reuseKeys) {
 }
 
 export function onUpdate (listener, ...reuseKeys) {
-	// run whenever this component is created or updated 
+	// run whenever this component is created or updated
 	return new ContextListenerSpecification('update', (contextListener) => {
 		contextListener.onUpdate = listener;
 	}, ...reuseKeys);
@@ -196,7 +196,7 @@ export function onContext (configurator, ...reuseKeys) {
 		// use contextListener, contextListener.context, and contextListener.element
 		// and set onAttach, onRemove, onUpdate, onBroadcast handlers
 		configurator(contextListener);
-	});
+	}, ...reuseKeys);
 }
 
 // as a convenience provide built in element spec generators for common elements
@@ -287,7 +287,7 @@ class ContextListenerSpecification extends ComponentSpecification {
 		this.type = type;
 		this.configurator = configurator;
 		this.reuseKeys = [...reuseKeys];
-	}	
+	}
 }
 
 // -------------------------------------------------------------------------------
@@ -311,7 +311,7 @@ class RenderContext {
 
 		// consolidate updates
 		this.updateIsRequested = false;
-		
+
 		// context reference values, ie. app and library integrations (rather than model data)
 		this.contextValues = new Map();
 		if (initialContextValues) {
@@ -337,14 +337,14 @@ class RenderContext {
 	set (name, value) {
 		this.contextValues.set(name, value);
 	}
-	
+
 	// get a value stored in this or any parent context
 	get (name, defaultValue = null) {
 		if (this.contextValues.has(name)) {
 			return this.contextValues.get(name);
-		}		
+		}
 		if (this.parentContext) {
-			return this.parentContext.get(name);
+			return this.parentContext.get(name, defaultValue);
 		}
 		return defaultValue;
 	}
@@ -465,7 +465,7 @@ class RenderContext {
 
 		} else if (component instanceof ListenSpecification) {
 			renderPhase.findOrCreateDOMListener(this, parent, component.event, component.listener);
-			
+
 		} else if (component instanceof ContextListenerSpecification) {
 			renderPhase.findOrCreateContextListener(this, parent, component.type, component.configurator, component.reuseKeys);
 
@@ -556,7 +556,7 @@ class RenderPhase {
 			this.parentOrder.set(parent, parent.firstChild);
 		}
 		const insertBefore = this.parentOrder.get(parent);
-				
+
 		const keys = [ type, parent, state ];
 		const existing = this.find(ElementAttachment, keys);
 		if (existing) {
@@ -609,14 +609,14 @@ class RenderPhase {
 
 		return this.addAttachment(new DOMListenerAttachment(context, parent, event, listener), keys);
 	}
-	
+
 	findOrCreateContextListener (context, element, type, configurator, reuseKeys) {
 		const keys = [ context, element, type, ...reuseKeys ];
 		const existing = this.find(ContextListenerAttachment, keys);
 		if (existing) {
 			return existing;
 		}
-		
+
 		const contextListener = new ContextListenerAttachment(context, element, type);
 		configurator(contextListener);
 		return this.addAttachment(contextListener, keys);
@@ -709,7 +709,7 @@ class DOMListenerAttachment extends RenderAttachment {
 		this.wrappedListener = (evt) => { this.listener(context, element, evt); }
 		this.element.addEventListener(this.eventName, this.wrappedListener);
 	}
-	
+
 	updateListener (listener) {
 		this.listener = listener;
 	}
@@ -729,13 +729,13 @@ class ContextListenerAttachment extends RenderAttachment {
 		this.element = element;
 		this.type = type;
 	}
-	
-	// set these optional listeners	
+
+	// set these optional listeners
 	// .onAttach?.(context, element)
 	// .onUpdate?.(context, element)
 	// .onRemove?.(context, element)
 	// .onBroadcast?.(event, eventData)
-	
+
 	remove () {
 		super.remove();
 		this.onRemove?.(this.context, this.element);
@@ -787,7 +787,7 @@ function applyMergedProperties(context, element, key, value) {
 }
 
 // -------------------------------------------------------------------------------
-// hair.signals, callbacks and requestAnimationFrame updates as required 
+// hair.signals, callbacks and requestAnimationFrame updates as required
 // -------------------------------------------------------------------------------
 
 // -- watch / signal / removeWatcher -------------------------------------------
@@ -811,7 +811,7 @@ export function watch(object, action, owner) {
 		}
 		ownerMap.get(owner).push(watcher);
 	}
-	
+
 	// return the specific action+owner object to allow cancelling that specifically also
 	return watcher;
 }
@@ -844,7 +844,7 @@ export function removeWatcher(ownerOrWatcher) {
 				watchMap.delete(ownerOrWatcher.object);
 			}
 		}
-		
+
 	} else if (ownerMap.has(ownerOrWatcher)) {
 		const allWatchersForOwner = ownerMap.get(ownerOrWatcher);
 		ownerMap.delete(ownerOrWatcher);
@@ -894,7 +894,7 @@ export function onNextFrame (action, owner) {
 export function onEveryFrame (action, owner) {
 	const delayedAction = onNextFrame(action, owner);
 	delayedAction.repeat = 0;
-	return delayedAction;	
+	return delayedAction;
 }
 
 export function onAnyFrame (action, owner) {
@@ -902,14 +902,14 @@ export function onAnyFrame (action, owner) {
 	delayedActions.push(delayedAction);
 	delayedAction.repeat = 0;
 	delayedAction.doesNotRequestFrames = true;
-	return delayedAction;	
+	return delayedAction;
 }
 
 export function cancel (owner) {
 	if (!owner) {
 		return;
 	}
-	
+
 	let i = 0;
 	while (i < delayedActions.length) {
 		const check = delayedActions[i];
@@ -969,12 +969,12 @@ function _animationFrame () {
 	if (MONITOR_DOM_UPDATES) {
 		REQUEST_ANIMATION_FRAME_COUNT++;
 	}
-	
+
 	// set aside all actions now due
 	const now = Date.now();
 	frameDeltaSeconds = (now - frameStartTime) / 1000.0;
-	frameStartTime = now;	
-	
+	frameStartTime = now;
+
 	const toBeActioned = [];
 	const toBeRepeated = [];
 	while (delayedActions.length > 0 && delayedActions[delayedActions.length - 1].time <= frameStartTime) {
@@ -1000,7 +1000,7 @@ function _animationFrame () {
 
 	// ordered by phase to allow more consistent dispatch ordering
 	toBeActioned.sort((a, b) => { return a.phase - b.phase; });
-	
+
 	// dispatch all actions (ignoring disposed owners)
 	for (const delayed of toBeActioned) {
 		if (!isObjectDisposed(delayed.owner)) {
@@ -1014,7 +1014,7 @@ class DelayedAction {
 		this.time = time;
 		this.action = action;
 		this.owner = owner;
-		
+
 		// override this with a number to set a recurring delay to repeat the event after the first time it is called
 		this.repeat = false;
 

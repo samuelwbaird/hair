@@ -59,7 +59,7 @@ function loadingView () {
 
 function gameView (game) {
 	return [
-		hp.pixi_scene(() => { return new scene.CharacterScene(game.character); }),
+		hp.pixi_scene(() => { return new scene.CharacterScene(game.character); }, game.character),
 		h.div({ class: 'character-ui' }, [
 			h.div(),
 			h.div({ class: 'slug' }, game.character.name),

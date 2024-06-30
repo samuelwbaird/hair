@@ -2,7 +2,7 @@ import * as h from '../../hair.js';
 import * as ht from '../../hair.tween.js';
 import * as hp from '../../hair.pixi.js';
 
-export class LoadingScene extends hp.PixiScene {
+export class LoadingScene extends hp.PixiNode {
 
 	begin () {
 		console.log('LoadingScene::begin');
@@ -12,7 +12,7 @@ export class LoadingScene extends hp.PixiScene {
 }
 
 
-export class CharacterScene extends hp.PixiScene {
+export class CharacterScene extends hp.PixiNode {
 	
 	constructor (character) {
 		super();

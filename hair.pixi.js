@@ -72,16 +72,15 @@ export function pixi_scene (sceneConstructor, ...reuseKeys) {
 
 		let scene = null;
 		contextListener.onAttach = (context, element) => {
-			scene = sceneConstructor(pixi_canvas);
-			// canvas.addScene(scene);
-			// scene.begin();
+			scene = sceneConstructor(context);
+			pixi_canvas.addScene(scene);
 		};
 		contextListener.onBroadcast = (eventName, eventData) => {
 			scene.onBroadcast(eventName, eventData);
 		};
 		contextListener.onRemove = (context, element) => {
 			if (scene) {
-				scene.dispose();
+				pixi_canvas.removeScene(scene);
 				scene = null;
 			}
 		};
@@ -131,13 +130,25 @@ export class PixiCanvas {
 		this.canvas = null;
 		this.pixiApp = null;
 		this.screen = null;
+		
+		// top level pixi nodes attached to the canvas
+		this.scenes = new UpdateList();
 	}
 
-	attach (canvas) {
+	attach (canvas, hairRenderContext) {
 		if (this.canvas) {
 			throw new Error('PixiCanvas cannot be reattached');
 		}
 		this.canvas = canvas;
+		
+		this.context = new Context(hairRenderContext, {
+			app: this.pixiApp,
+			screen: this.screen,
+			canvas: this.canvas,
+			pixiCanvas: this,
+			// automatic attachment point for child objects
+			pixiView: this.screen,
+		});
 		
 		// set up phased frame events
 		hair.onAnyFrame(() => { this.phasePrepareFrame(); }, this).phase = PHASE_PREPARE_FRAME;
@@ -145,6 +156,18 @@ export class PixiCanvas {
 
 		// then request at least one specific frame to trigger the first render
 		hair.onNextFrame(() => { this.phaseConfig(); }, this).phase = PHASE_CONFIG;
+	}
+	
+	addScene (scene) {
+		this.scenes.add(scene);
+		scene.context = new Context(this.context);
+		scene.begin();
+	}
+	
+	removeScene (scene) {
+		if (this.scenes.remove(scene)) {
+			scene.dispose();
+		}
 	}
 
 	phaseConfig () {
@@ -185,7 +208,12 @@ export class PixiCanvas {
 	}
 
 	dispose () {
-
+		if (this.scenes) {
+			this.scenes.update((scene) => {
+				scene.dispose();
+			});
+			this.scenes = null;
+		}
 	}
 
 }
@@ -203,25 +231,292 @@ export class PixiCanvas {
 // animation tree (if there are any animations present)
 
 
-export class PixiScene {
-
-	constructor (pixi_canvas) {
-		this.pixi_canvas = pixi_canvas;
+export class PixiNode {
+	
+	// set subclass specific values in the constructor
+	// but wait for begin to act when all supporting values are in place
+	
+	constructor () {
+		
 	}
 
 	begin () {
-
+		this.pixiView = new PixiView(this);
+		// add to the parent by default
+		const parent = this.context.get('pixiView');
+		if (parent) {
+			parent.addChild(this.pixiView);
+		} else {
+			screen.addChild(this.pixiView);
+		}
+		node.context.set('pixiView', this.pixiView);
+		node.addDisposable(this.pixiView);
 	}
+
+	add (child) {
+		if (!this.children) {
+			this.children = new UpdateList();
+		}
+		this.children.add(child);
+
+		child.context = this.context.derive();
+		child.begin();
+
+		return child;
+	}
+
+	remove (child) {
+		if (!this.children) {
+			return;
+		}
+		if (this.children.remove(child)) {
+			child.dispose();
+		}
+	}
+
+	removeAllChildren () {
+		if (this.children) {
+			const oldList = this.children;
+			this.children = null;
+			for (const updateListEntry of oldList.list) {
+				updateListEntry.obj.dispose();
+			}
+		}
+	}
+
+	tween () {
+		// wrap hair.tween with this as the owner
+	}
+
+	delay () {
+		// wrap hair.delay wih this as the owner
+	}
+
+	hook () {
+		// wrap hair.onEveryFrame with this as the owner
+	}
+	
+	// timer
+	// coroutines...
+	
+	// update (delta) pre any render
+	// some kind of tree walk, or tree walk for views updating animations (maybe from canvas)
 
 	onBroadcast (eventName, eventData) {
 
 	}
 
-	dispose () {
-
+	addDisposable (disposable) {
+		if (!this.disposables) {
+			this.disposables = [];
+		}
+		this.disposables.push(disposable);
+		return disposable;
 	}
 
+	dispose () {
+		if (this.children) {
+			this.children.update((child) => {
+				child.dispose();
+			});
+			this.children = null;
+		}
+
+		if (this.disposables) {
+			for (const disposable of this.disposables) {
+				if (typeof disposable == 'function') {
+					disposable();
+				} else if (disposable.dispose) {
+					disposable.dispose();
+				} else {
+					throw 'cannot dispose ' + disposable;
+				}
+			}
+			this.disposables = null;
+		}
+	}
+	
 }
+
+class Context {
+	
+	constructor (parent, initialValues = null) {
+		this.parent = parent;
+		this.contextValues = new Map();
+		if (initialValues) {
+			for (const [k, v] of Object.entries(initialValues)) {
+				this.set(k, v);
+			}			
+		}
+	}
+
+	// set a value or reference at this level of the context
+	set (name, value) {
+		this.contextValues.set(name, value);
+	}
+
+	// get a value stored in this or any parent context
+	get (name, defaultValue = null) {
+		if (this.contextValues.has(name)) {
+			return this.contextValues.get(name);
+		}
+		if (this.parentContext) {
+			return this.parentContext.get(name, defaultValue);
+		}
+		return defaultValue;
+	}	
+	
+}
+
+class UpdateList {
+	
+	constructor () {
+		this.list = [];
+
+		// control updates during iteration
+		this.isIterating = false;
+		this.iterationIndex = 0;
+
+		// these are only create if an interruption to fast path occurs
+		this.slowPathToComplete = null;
+		this.slowPathToIgnore = null;
+	}
+
+	add (obj, tag) {
+		// capture the slow path here before objects are added this update cycle
+		this.enableSlowPathIterationIfRequired();
+
+		this.list.push({
+			obj: obj,
+			tag: tag,
+		});
+
+		return obj;
+	}
+
+	remove (objOrTag) {
+		// cancel the fast path if we're in an iteration
+		this.enableSlowPathIterationIfRequired();
+
+		let didRemove = false;
+		let i = 0;
+		while (i < this.list.length) {
+			const entry = this.list[i];
+			if (entry.obj == objOrTag || entry.tag == objOrTag) {
+				this.list.splice(i, 1);
+				didRemove = true;
+			} else {
+				i++;
+			}
+		}
+
+		return didRemove;
+	}
+
+	clear () {
+		// cancel the fast path if we're in an iteration
+		this.enableSlowPathIterationIfRequired();
+
+		// clear our actual list
+		this.list = [];
+	}
+
+	isClear () {
+		return this.list.length == 0;
+	}
+
+	first () {
+		return this.list[0].obj;
+	}
+
+	last () {
+		return this.list[this.list.length - 1].obj;
+	}
+
+	update (updateFunction, removeONReturnTrue) {
+		// if we're already in an iteration, don't allow it to recurse
+		if (this.isIterating) {
+			return;
+		}
+
+		// markers to begin the iteration in fast path
+		this.isIterating = true;
+
+		// begin on a fast path, iterating by index and removing complete updates as required
+		// avoid creation of temporary objects unless update during iteration requires it
+		let i = 0;
+		let length = this.list.length;
+		while (i < length && this.slowPathToComplete == null) {
+			// save this marker in case we drop off the fast path
+			this.iterationIndex = i;
+
+			// check this entry, update and remove if required
+			const entry = this.list[i];
+			if (updateFunction(entry.obj) === true && removeONReturnTrue) {
+				// if we've jumped onto the slow path during the update then be careful here
+				if (this.slowPathToComplete != null) {
+					const postUpdateIndex = this.list.indexOf(entry);
+					if (postUpdateIndex >= 0) {
+						this.list.splice(postUpdateIndex, 1);
+					}
+				} else {
+					this.list.splice(i, 1);
+					length--;
+				}
+			} else {
+				i++;
+			}
+		}
+
+		// if we've dropped off the fast path then complete the iteration on the slow path
+		if (this.slowPathToComplete != null) {
+			// complete all that haven't been removed since we started the slow path
+			for (const entry of this.slowPathToComplete) {
+				// first check this entry is still in the real list
+				const currentIndex = this.list.indexOf(entry);
+				if (currentIndex >= 0) {
+					if (updateFunction(entry.obj) === true && removeONReturnTrue) {
+						// find and remove it from the original list, if its still in after the update function
+						const postUpdateIndex = this.list.indexOf(entry);
+						if (postUpdateIndex >= 0) {
+							this.list.splice(postUpdateIndex, 1);
+						}
+					}
+				}
+			}
+		}
+
+		// clear flags and data that can be accumulated during iteration
+		this.slowPathToComplete = null;
+		this.isIterating = false;
+	}
+
+	enableSlowPathIterationIfRequired () {
+		// only do this if we haven't already for this iteration
+		if (!this.isIterating || this.slowPathToComplete != null) {
+			return;
+		}
+
+		// capture a copy of everything we need to complete on the remainder of the fast path
+		this.slowPathToComplete = [];
+		for (let i = this.iterationIndex + 1; i < this.list.length; i++) {
+			this.slowPathToComplete.push(this.list[i]);
+		}
+	}
+
+	cloneUpdate (updateFunction, removeONReturnTrue) {
+		const clone = this.list.concat();
+		for (const entry of clone) {
+			if (updateFunction(entry.obj) === true && removeONReturnTrue) {
+				const index = this.list.indexOf(entry);
+				if (index > -1) {
+					this.list.splice(index, 1);
+				}
+			}
+		}
+	}
+}
+
 
 export class PixiView {
 
