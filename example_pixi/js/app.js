@@ -49,7 +49,14 @@ export function view (state) {
 
 function loadingView () {
 	return [
-		hp.pixi_scene(() => { return new scene.LoadingScene(); }),
+		hp.pixi_node(() => { return new scene.LoadingScene(); }),
+		hp.pixi_view((view) => {
+			view.create([
+				{ rect: 0x777777, x: 10, y: 10, width: 320, height: 320 },
+				{ id: 'txtTitle', x: 160, y: 40, text: 'Casual RPG', align: 'center' },
+				//'rec'
+			]);
+		}),
 		h.div({ class: 'loading-ui' }, [
 			h.div(),
 			h.div('Loading'),
@@ -59,7 +66,7 @@ function loadingView () {
 
 function gameView (game) {
 	return [
-		hp.pixi_scene(() => { return new scene.CharacterScene(game.character); }, game.character),
+		hp.pixi_node(() => { return new scene.CharacterScene(game.character); }, game.character),
 		h.div({ class: 'character-ui' }, [
 			h.div(),
 			h.div({ class: 'slug' }, game.character.name),
