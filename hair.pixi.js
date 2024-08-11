@@ -41,14 +41,18 @@
 //   PixiClip
 //   TouchArea
 
-import * as hair from './hair.js';
+
+
+import * as core from './hair.core.js';
+import * as html from './hair.html.js';
+import * as tween_lib from './hair.tween.js';
 
 // -- public interface ----------------------------------------------------------------------
 
 // attach an HTML canvas to the DOM as part of a hair view component
 // include a callback to configure that canvas when it is first added
 export function pixi_canvas (withCanvas, ...reuseKeys) {
-	return hair.onContext((contextListener) => {
+	return html.onContext((contextListener) => {
 		// create a pixi canvas object immediately
 		// and set it in the context tree for remainder of render
 		let pixi_canvas = new PixiCanvas();
@@ -70,7 +74,7 @@ export function pixi_canvas (withCanvas, ...reuseKeys) {
 
 // attach an object that is a subclass of PixiNode, the view is added to the canvas
 export function pixi_node (nodeConstructor, ...reuseKeys) {
-	return hair.onContext((contextListener) => {
+	return html.onContext((contextListener) => {
 		const pixi_canvas = contextListener.context.get('pixi_canvas');
 		if (!pixi_canvas) {
 			throw new Error('There must be a pixi canvas within the context tree to create a node.');
@@ -78,7 +82,7 @@ export function pixi_node (nodeConstructor, ...reuseKeys) {
 
 		let node = null;
 		contextListener.onAttach = (context, element) => {
-			hair.onNextFrame(() => {
+			core.onNextFrame(() => {
 				node = nodeConstructor(context);
 				pixi_canvas.addNode(node);
 			}, contextListener).phase = PHASE_ADD_NODE;
@@ -97,7 +101,7 @@ export function pixi_node (nodeConstructor, ...reuseKeys) {
 
 // create or update a pixi view on each render
 export function pixi_view (viewUpdateFunction, ...reuseKeys) {
-	return hair.onContext((contextListener) => {
+	return html.onContext((contextListener) => {
 		const pixi_canvas = contextListener.context.get('pixi_canvas');
 		if (!pixi_canvas) {
 			throw new Error('There must be a pixi canvas within the context tree to create a node.');
@@ -105,7 +109,7 @@ export function pixi_view (viewUpdateFunction, ...reuseKeys) {
 
 		let node = null;
 		contextListener.onAttach = (context, element) => {
-			hair.onNextFrame(() => {
+			core.onNextFrame(() => {
 				node = new PixiNode();
 				pixi_canvas.addNode(node);
 				viewUpdateFunction(node.view);
@@ -192,11 +196,11 @@ export class PixiCanvas {
 		});
 
 		// set up phased frame events
-		hair.onAnyFrame(() => { this.phasePrepareFrame(); }, this).phase = PHASE_PREPARE_FRAME;
-		hair.onAnyFrame(() => { this.phaseRenderFrame(); }, this).phase = PHASE_RENDER_FRAME;
+		core.onAnyFrame(() => { this.phasePrepareFrame(); }, this).phase = PHASE_PREPARE_FRAME;
+		core.onAnyFrame(() => { this.phaseRenderFrame(); }, this).phase = PHASE_RENDER_FRAME;
 
 		// then request at least one specific frame to trigger the first render
-		hair.onNextFrame(() => { this.phaseConfig(); }, this).phase = PHASE_CONFIG;
+		core.onNextFrame(() => { this.phaseConfig(); }, this).phase = PHASE_CONFIG;
 	}
 
 	addNode (node) {
