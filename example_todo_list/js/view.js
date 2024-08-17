@@ -57,10 +57,10 @@ function displayItem (model, item) {
 /** component to render the UI to add new items */
 function addItem (model) {
 	return h.div([
-		h.input({ _id: 'txt_input' }),
+		h.input({ context_id: 'txt_input' }),
 		h.div({ style: { display: 'inline', marginRight: '10px' }}),
 		h.button('Add', { class: ['btn', 'btn-add'] }, h.listen('click', (context, element) => {
-			// use a reference to a another element within this same context, using the special _id property
+			// use a reference to a another element within this same context, using the special context_id property
 			model.addItem(context.txt_input.value);
 			context.txt_input.value = '';
 		})),

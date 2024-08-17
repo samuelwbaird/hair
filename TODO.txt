@@ -1,0 +1,28 @@
+PIXI
+remove UpdateList, or move it to core
+move context to core, and make it the base class of html render context
+update names in hair.html to be more specific, eg. HTMLRenderContext
+de-emphasise PixiNode, make it internal only? 
+can it be melted with context or even one or other removed
+remove subclasses as a method of building scenes
+just a begin method...
+addDisposable to the hair render context? (base class context)
+ 
+ 
+h.onBroadcast... how to target ID'd elements within the pixi view, ID to context from the create method!
+context knows about its parent
+nodes know about their children
+
+context gets children references set by ID (both hair HTML and pixi view objects)
+
+how to do fixed updates (eg. physics timers)
+or animation... each animated clip requests its own core.timer?
+both animation and fixed update, how to align time against render time...
+eg. delta or delta (aligned to X fps)
+
+fixed update should be propagated by node tree, or just leave that be and rely on phase only??
+
+"walk" the views and update animation
+"walk" the nodes and do fixed update
+or add a fixed update as a component...
+like adding an animation timer?

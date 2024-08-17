@@ -505,7 +505,7 @@ class RenderPhase {
 		}
 		const insertBefore = this.parentOrder.get(parent);
 
-		const keys = [ type, parent, state ];
+		const keys = [ type, parent, state, properties?.id, properties?.context_id ];
 		const existing = this.find(ElementAttachment, keys);
 		if (existing) {
 			if (existing.element == insertBefore || existing.element.nextSibling == insertBefore) {
@@ -719,7 +719,7 @@ class ContextListenerAttachment extends RenderAttachment {
 // -- setting properties that need specific handling ------------------------
 // property names that have specific functionality to apply them
 const propertyHandlers = {
-	_id: applyContextIDProperty,
+	context_id: applyContextIDProperty,
 	class: applyClassList,
 	style: applyMergedProperties,
 }

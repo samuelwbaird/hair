@@ -59,7 +59,7 @@ Snippet:
 				itemCount(model.items.length),
 				
 				// use the compose function to request a managed render of a list of objects with a component
-				h.ol({ _id: 'list' }, h.compose(model.items, (item) => displayItem(model, item))),
+				h.ol({ context_id: 'list' }, h.compose(model.items, (item) => displayItem(model, item))),
 			]),
 			
 			h.div({ _class: 'add_item_area' }, [
@@ -88,7 +88,7 @@ Open the example folder in your browser
 
 During instantiation or update of DOM elements, recognised property names are given special treatment when applied to the element.
 
- * \_id, this property sets a reference to the element on the context object, eg. \_id = "textbox" => sets a reference to this element at context.textbox
+ * context_id, this property sets a reference to the element on the context object, eg. context_id = "textbox" => sets a reference to this element at context.textbox
  * class, this property when given a name, or an array of names, will update the classList of the element to match
  * style, when an object value is applied to this property, the values of that object will be merged into the element style object, rather than replacing it
 
