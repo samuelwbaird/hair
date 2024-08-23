@@ -515,7 +515,11 @@ class RenderPhase {
 					MOVE_COUNT++;
 				}
 				existing.element.remove();
-				parent.insertBefore(existing.element, insertBefore);
+				if (insertBefore == null || insertBefore.parent == parent) {
+					parent.insertBefore(existing.element, insertBefore);
+				} else {
+					parent.appendChild(existing.element);
+				}
 			}
 			return existing.element;
 		}
@@ -722,6 +726,7 @@ const propertyHandlers = {
 	context_id: applyContextIDProperty,
 	class: applyClassList,
 	style: applyMergedProperties,
+	value: applyValueToInput,
 }
 
 export function setPropertyHandler(name, handler) {
@@ -757,6 +762,14 @@ function applyMergedProperties(context, element, key, value) {
 	const mergeInto = element[key];
 	for (const [k, v] of Object.entries(value)) {
 		mergeInto[k] = v;
+	}
+}
+
+function applyValueToInput(context, element, key, value) {
+	if (document.activeElement == element && (element instanceof HTMLInputElement) && document.hasFocus()) {
+		// do not overwrite the value of an input that has focus		
+	} else {
+		element[key] = value;		
 	}
 }
 
