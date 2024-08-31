@@ -369,7 +369,8 @@ class RenderContext {
 
 	// recursive process to expand the components and apply them to the DOM
 	#apply (parent, state, component, renderPhase) {
-		if (Array.isArray(state)) {
+		const stateIsIterable = (state != null) && (typeof state != 'string') && (typeof state[Symbol.iterator] === 'function');				
+		if (stateIsIterable) {
 			// special case list handling... map list items and their component to the created element
 			for (const item of state) {
 				const subContext = renderPhase.findOrCreateListItemSubContext(this, parent, component, item);
