@@ -2,15 +2,6 @@ import * as h from '../../hair.js';
 import * as ht from '../../hair.tween.js';
 import * as hp from '../../hair.pixi.js';
 
-export class LoadingScene extends hp.PixiNode {
-
-	begin () {
-		console.log('LoadingScene::begin');
-		// tween a loading indicator
-	}
-		
-}
-
 
 export class CharacterScene extends hp.PixiNode {
 	

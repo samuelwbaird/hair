@@ -15,8 +15,7 @@
 		
 	// -- render the app in place ---------------------------------
 	const parent = document.getElementById('app');
-	const context = h.render(parent, app.state, app.view);	
-	app.loadAssetsAndLaunch();
+	app.loadAssetsAndLaunch(parent);
 </script>
 </body>
 </html>
