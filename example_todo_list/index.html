@@ -14,9 +14,9 @@
 	// this simple example broken into a model class and view functions
 	// in this example code the view is "aware" of the model, reads data from it and calls methods to update data or mutate the model
 	// but the model is not "aware" of the view, it has no direct references to the view
-	// the model "signals" to hair.js whenever model objects have been updated, to trigger re-render of watching components
+	// the model "signals" to hair-mini.js whenever model objects have been updated, to trigger re-render of watching components
 	import TodoModel from './js/model.js';
-	import app from './js/view.js';
+	import appView from './js/view.js';
 	
 	// create the data model for the app
 	const model = new TodoModel('Important TODO list');
@@ -30,13 +30,20 @@
 	
 	// -- render the app in place ---------------------------------
 	const parent = document.getElementById('app');
-	const context = hair.render(parent, model, app);
+	const context = hair.render(parent, model, appView);
 	
-	// the app relies on the simple global watch/signal mechanism to re-render updates to the model
+	// the app relies on a simple global watch/signal mechanism to re-render updates to the model
 	// from this point the view will be re-rendered if the state objects signal they have changed (eg. through model update methods)
+	// we can also use the context object to update view for other arbitrary reasons (like to render a different model)
+	//
+	// hair.delay(1, () => {
+	// 	context.update(newModel);
+	// });
+	//
+	// context.dispose();
 	
-	// we can also use the context object to update view for other reasons
 	// this is an artifical example using a timer (hair's shared central timer) to pretend new data has come in from the network
+	// triggering an update to the view outside of user interaction
 	hair.delay(10, () => {
 		model.addItem('Automated reminder: feed the cat');
 	});

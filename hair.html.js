@@ -309,14 +309,13 @@ class RenderContext {
 		}
 
 		// track the intended order of elements as they are created or reused
-		if (parentOrder) {
-			this.parentOrder = parentOrder;
-		} else {
-			this.parentOrder = new Map();
-			// we need to start this component off in its current position
+		if (!parentOrder) {
+			parentOrder = new Map();
+			// we need to start this component off in its current position of its first element
 			for (const attachment of this.attachments) {
 				if ((attachment instanceof ElementAttachment) && (attachment.element.parentElement == this.parentDOMElement)) {
-					this.parentOrder.set(this.parentDOMElement, attachment.element);
+					parentOrder.set(this.parentDOMElement, attachment.element);
+					break;
 				}
 			}
 		}
@@ -326,7 +325,7 @@ class RenderContext {
 		this.updateIsRequested = false;
 
 		// begin middle and end of render
-		const renderPhase = new RenderPhase(this, this.parentOrder);
+		const renderPhase = new RenderPhase(this, parentOrder);
 		this.#apply(this.parentDOMElement, state, this.component, renderPhase);
 		this.commit(renderPhase);
 
