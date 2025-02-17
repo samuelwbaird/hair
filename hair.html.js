@@ -53,6 +53,26 @@ export function render (parent, state, component, initialContextValues = null) {
 	return context;
 }
 
+export function createElements (parent, state, component, initialContextValues = null) {
+	// create a context (attached to this parent)
+	const context = new RenderContext(parent, component, initialContextValues);
+
+	// recursively expand the component in element specs
+	const renderPhase = context.render(state);
+
+	// gather the top level HTML elements that were rendered and return those directly
+	const elements = [];
+	for (const attachment of renderPhase.attachments) {
+		if (attachment instanceof ElementAttachment) {
+			if (attachment.element.parentElement == parent) {
+				elements.push(attachment.element);
+			}
+		}
+	}
+	
+	return elements;
+}
+
 // -------------------------------------------------------------------------------
 // hair.component-specifications, describe your components for rendering
 // -------------------------------------------------------------------------------
@@ -299,7 +319,7 @@ class RenderContext {
 
 	render (state) {
 		this.clear();
-		this.update(state);
+		return this.update(state);
 	}
 
 	update (state, parentOrder = null) {
@@ -336,6 +356,8 @@ class RenderContext {
 				core.onNextFrame(() => { this.consolidatedUpdateFromSignals(); }, this);
 			}, this);
 		}
+		
+		return renderPhase;
 	}
 
 	consolidatedUpdateFromSignals () {

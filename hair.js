@@ -41,6 +41,7 @@ export const onContext = html.onContext;
 
 export const elementFactory = html.elementFactory;
 export const setPropertyHandler = html.setPropertyHandler;
+export const createElements = html.createElements;
 
 // create some common element tags for convenience
 export const div = html.elementFactory('div');
