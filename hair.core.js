@@ -156,8 +156,20 @@ let frameIsRequested = false;	// is an animationFrameRequest for the next frame 
 let longDelayTimeout = false;	// is a timeout for delayed animation frames already in play?
 
 // set a consistent time at the start of any timer events
-export let frameStartTime = Date.now();
+let frameStartTime = Date.now();
+let isInFrameDuration = false;
 export let frameDeltaSeconds = 0;
+
+export function getFrameStartTime() {
+	if (isInFrameDuration) {
+		// if we're in the frame timer phase then use frameStartTime
+		// then align with the start of those frame actions
+		return frameStartTime; 
+	} else {
+		// otherwise the time of the last frame start is unreliable
+		return Date.now();
+	}
+}
 
 function requestFrameTimer () {
 	if (frameIsRequested || delayedActions.length == 0) {
@@ -228,11 +240,13 @@ function _animationFrame () {
 	toBeActioned.sort((a, b) => { return a.phase - b.phase; });
 
 	// dispatch all actions (ignoring disposed owners)
+	isInFrameDuration = true;
 	for (const delayed of toBeActioned) {
 		if (!isObjectDisposed(delayed.owner)) {
 			delayed.action();
 		}
 	}
+	isInFrameDuration = false;
 }
 
 class DelayedAction {

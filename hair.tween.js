@@ -103,13 +103,13 @@ class Tween {
 	}
 	
 	#begin () { 
-		this.startTime = core.frameStartTime;
+		this.startTime = core.getFrameStartTime();
 		this.properties = {}
 		for (const k in this.propertiesRequested) {
 			this.properties[k] = captureTweenProperty(this.target, k, this.propertiesRequested[k]);
 		}
 		this.timer = core.onEveryFrame(() => {
-			this.#update(Math.max(0, Math.min(1, (core.frameStartTime - this.startTime) / (this.timing.duration * 1000))));
+			this.#update(Math.max(0, Math.min(1, (core.getFrameStartTime() - this.startTime) / (this.timing.duration * 1000))));
 		}, this.owner);
 	}
 	
