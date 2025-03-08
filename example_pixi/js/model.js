@@ -1,3 +1,5 @@
+import * as h from '../../../hair.js';
+
 export class GameModel {
 	constructor () {
 		this.character = new CharacterModel();

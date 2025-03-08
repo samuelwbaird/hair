@@ -2,7 +2,6 @@ import * as h from '../../hair.js';
 import * as ht from '../../hair.tween.js';
 import * as hp from '../../hair.pixi.js';
 
-
 export class CharacterScene extends hp.PixiNode {
 	
 	constructor (character) {

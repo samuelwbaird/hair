@@ -317,8 +317,11 @@ class RenderContext {
 		return defaultValue;
 	}
 
-	render (state) {
+	render (state, component = null) {
 		this.clear();
+		if (component != null) {
+			this.component = component;
+		}
 		return this.update(state);
 	}
 

@@ -85,10 +85,10 @@ export function pixi_node (nodeConstructor, ...reuseKeys) {
 
 		let node = null;
 		contextListener.onAttach = (context, element) => {
-			core.onNextFrame(() => {
+			pixi_canvas.withAvailableView(() => {
 				node = nodeConstructor(context);
 				pixi_canvas.addNode(node);
-			}, contextListener).phase = PHASE_ADD_NODE;
+			}, contextListener);
 		};
 		contextListener.onBroadcast = (eventName, eventData) => {
 			node.onBroadcast(eventName, eventData);
@@ -120,11 +120,11 @@ export function pixi_view (viewUpdateFunction, ...reuseKeys) {
 
 		let node = null;
 		contextListener.onAttach = (context, element) => {
-			core.onNextFrame(() => {
+			pixi_canvas.withAvailableView(() => {
 				node = new PixiNode();
 				pixi_canvas.addNode(node);
 				viewUpdateFunction(node.view);
-			}, contextListener).phase = PHASE_ADD_NODE;
+			}, contextListener);
 		};
 		contextListener.onUpdate = (context, element) => {
 			if (node != null) {
@@ -237,6 +237,16 @@ export class PixiCanvas {
 		if (this.nodes.remove(node)) {
 			node.dispose();
 		}
+	}
+	
+	withAvailableView (action, owner) {
+		if (this.pixiApp) {
+			action();
+		} else {
+			core.onNextFrame(() => {
+				action();
+			}, owner).phase = PHASE_ADD_NODE;
+		}		
 	}
 
 	phaseConfig () {
@@ -930,6 +940,10 @@ class UpdateList {
 
 	last () {
 		return this.list[this.list.length - 1].obj;
+	}
+	
+	length () {
+		return this.list.length;
 	}
 
 	update (updateFunction, removeONReturnTrue) {
