@@ -109,7 +109,7 @@ export function pixi_view (viewUpdateFunction, ...reuseKeys) {
 		if (!pixi_canvas) {
 			throw new Error('There must be a pixi canvas within the context tree to create a node.');
 		}
-		
+
 		// if the view update function is an array, assume its a create spec
 		if (Array.isArray(viewUpdateFunction)) {
 			const createSpec = viewUpdateFunction;
@@ -206,6 +206,16 @@ export class PixiCanvas {
 
 		// top level pixi nodes attached to the canvas
 		this.nodes = new UpdateList();
+		this.listeners = [];
+	}
+
+	setLogicalSize (fitWidth = null, fitHeight = null, maxWidth = null, maxHeight = null, density = null) {
+		this.fitWidth = fitWidth;
+		this.fitHeight = fitHeight;
+		this.maxWidth = maxWidth;
+		this.maxHeight = maxHeight;
+		this.density = density ?? window.devicePixelRatio;
+		this.updateSizing();
 	}
 
 	attach (canvas, hairRenderContext) {
@@ -213,7 +223,7 @@ export class PixiCanvas {
 			throw new Error('PixiCanvas cannot be reattached');
 		}
 		this.canvas = canvas;
-		
+
 		this.context = new NodeContext(hairRenderContext, {
 			canvas: this.canvas,
 			pixiCanvas: this,
@@ -238,7 +248,7 @@ export class PixiCanvas {
 			node.dispose();
 		}
 	}
-	
+
 	withAvailableView (action, owner) {
 		if (this.pixiApp) {
 			action();
@@ -246,7 +256,7 @@ export class PixiCanvas {
 			core.onNextFrame(() => {
 				action();
 			}, owner).phase = PHASE_ADD_NODE;
-		}		
+		}
 	}
 
 	phaseConfig () {
@@ -263,13 +273,20 @@ export class PixiCanvas {
 		// set scaling and sizing of the canvas element and logical sizing
 		// set up touch listeners
 
+		// assume if the window resizes we need to re-render
+		this.listen(window, 'resize', () => {
+			core.onNextFrame(() => {
+				// do nothing, but this makes sure a render is triggered
+			});
+		});
+
 		this.context.set('app', this.pixiApp);
 		this.context.set('screen', this.screen);
 		this.context.set('view', this.screen);
 	}
 
 	phasePrepareFrame () {
-		// resizeIfNeeded(true);
+		this.updateSizing();
 
 		// set scaling and sizing of the canvas element and logical sizing
 		// add in any node if we're switching
@@ -290,7 +307,97 @@ export class PixiCanvas {
 		this.pixiApp.render();
 	}
 
+	updateSizing () {
+		if (!this.pixiApp) {
+			return;
+		}
+
+		// find out the dom sizing of the canvase element
+		const bounds = this.pixiApp.view.getBoundingClientRect();
+
+		const targetWidth = this.fitWidth ?? bounds.width;
+		const targetHeight = this.fitHeight ?? bounds.height;
+
+		// check if the screen spec is different
+		const screenSpec = bounds.width + ':' + bounds.height + ' <- ' + targetWidth + ':' + targetHeight + ':' + this.density;
+		if (screenSpec == this.screenSpec) {
+			return;
+		} else {
+			this.screenSpec = screenSpec;
+			console.log(screenSpec);
+		}
+
+		let useWidth = 0;
+		let useHeight = 0;
+		const ratio = bounds.width / bounds.height;
+		const idealRatio = targetWidth / targetHeight;
+		if (ratio > idealRatio) {
+			useHeight = targetHeight;
+			useWidth = useHeight * ratio;
+		} else {
+			useWidth = targetWidth;
+			useHeight = useWidth / ratio;
+		}
+
+		// set up the canvas to be the pixel size we need
+		this.pixiApp.renderer.resize(useWidth * this.density, useHeight * this.density);
+		PIXI.Text.defaultResolution = this.density;
+		PIXI.Text.defaultAutoResolution = false;
+
+		// set up and position our screen parent
+		this.screen.scale.set(this.density);
+
+		// if we have a max width or max height then we need to center and mask the results
+		let maskNeeded = false;
+		if (this.screen.mask) {
+			this.screen.mask.removeFromParent();
+		}
+		
+		if (this.maxWidth && useWidth > this.maxWidth) {
+			this.screen.x = ((useWidth - this.maxWidth) * 0.5) * this.density;
+			useWidth = this.maxWidth;
+			maskNeeded = true;
+		} else {
+			this.screen.x = 0;
+		}
+		
+		if (this.maxHeight && useHeight > this.maxHeight) {
+			this.screen.y = ((useHeight - this.maxHeight) * 0.5) * this.density;
+			useHeight = this.maxHeight;
+			maskNeeded = true;
+		} else {
+			this.screen.y = 0;
+		}
+		
+		// create a mask
+		if (maskNeeded) {
+			this.screen.mask = new PIXI.Graphics().beginFill(0x00ffff, 0.33).drawRect(0, 0, useWidth, useHeight);
+			this.screen.addChild(this.screen.mask);
+		}
+
+		// set values in the context for nodes to understand the screen size
+		this.width = useWidth;
+		this.height = useHeight;
+		this.context.set('screenWidth', useWidth);
+		this.context.set('screenHeight', useHeight);
+	}
+
+	listen (target, event, action) {
+		this.listeners.push({
+			target: target,
+			event: event,
+			action: action,
+		});
+		target.addEventListener(event, action);
+	}
+
 	dispose () {
+		if (this.listeners) {
+			for (const listener of this.listeners) {
+				listener.target.removeEventListener(listener.event, listener.action);
+			}
+			this.listeners = null;
+		}
 		if (this.nodes) {
 			this.nodes.update((node) => {
 				node.dispose();
@@ -410,20 +517,20 @@ export class PixiNode {
 
 // a convenience for when a node only requires a custom begin method and no other specific functionality
 export class AdhocPixiNode extends PixiNode {
-	
+
 	constructor (adhocBeginMethod) {
 		super();
 		this.adhocBeginMethod = adhocBeginMethod;
 	}
-	
+
 	begin () {
 		super.begin();
 		this.adhocBeginMethod(this);
 	}
-	
+
 }
 
-// PixiView 
+// PixiView
 // a heavyweight pixi view object with convenience methods to construct child elements
 // and quickly scaffold a set of pixi objects, integrating touch
 // each pixiview is linked to a node which provides interaction, timers and lifecycle
@@ -713,14 +820,13 @@ class PixiView extends PIXI.Container {
 	}
 
 	dispose () {
-		this.removeAllListeners();
 		this.removeFromParent();
 	}
 }
 
 // PixiClip
 // an animated view object, driven from loaded animation data
-// currently limited to 
+// currently limited to
 export class PixiClip extends PIXI.Container {
 
 	constructor () {
@@ -877,7 +983,7 @@ class NodeContext {
 
 }
 
-// a list that allows update during iteration in an ordered manner 
+// a list that allows update during iteration in an ordered manner
 class UpdateList {
 
 	constructor () {
@@ -941,7 +1047,7 @@ class UpdateList {
 	last () {
 		return this.list[this.list.length - 1].obj;
 	}
-	
+
 	length () {
 		return this.list.length;
 	}

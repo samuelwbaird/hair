@@ -7,9 +7,7 @@ import * as model from './model.js';
 import * as scene from './scene.js';
 
 // show an HTML loading scene while loading assets, (async load function)
-// then display a TitleView
-// the title view has an HTML button and a canvas
-// and a CharacterView inside, which shows an animated, named character
+// then show a CharacterView, with an animated named character
 // tap the button to create a new character (update via character object on the model)
 // tap the character to show an animation (pixi touch events)
 
@@ -24,7 +22,6 @@ export async function loadAssetsAndLaunch (parent) {
 	// load assets via pixi
 	await hp.assets.loadSpritesheet('assets/backgrounds.json');
 	await hp.assets.loadSpritesheet('assets/sprites.json');
-	
 	
 	const game = new model.GameModel();
 	app.setView(() => h.compose(game, () => { return characterView(game); }));
@@ -50,6 +47,7 @@ function appView (app) {
 			h.div({ class: 'scene' }, [
 				h.element('canvas', hp.pixi_canvas((c) => {
 					// set logical sizing of the canvas when its created
+					c.setLogicalSize(320, 480, 400);
 				})),
 			]),
 		]),
