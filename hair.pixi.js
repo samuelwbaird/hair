@@ -294,6 +294,11 @@ export class PixiCanvas {
 
 		// dispatch touch events
 
+	}
+
+	phaseRenderFrame () {
+		this.pixiApp.render();
+
 		// update animations
 		let callbacks = [];
 		this.walkNodes('updateAnimation', core.frameDeltaSeconds, (callback) => {
@@ -302,12 +307,6 @@ export class PixiCanvas {
 		for (const callback of callbacks) {
 			callback();
 		}
-
-		// update timers
-	}
-
-	phaseRenderFrame () {
-		this.pixiApp.render();
 	}
 
 	updateSizing () {
@@ -354,6 +353,7 @@ export class PixiCanvas {
 		let maskNeeded = false;
 		if (this.screen.mask) {
 			this.screen.mask.removeFromParent();
+			this.screen.mask = null;
 		}
 		
 		if (this.maxWidth && useWidth > this.maxWidth) {
@@ -375,8 +375,8 @@ export class PixiCanvas {
 		// create a mask
 		if (maskNeeded) {
 			// gets mispositioned over time?
-			// this.screen.mask = new PIXI.Graphics().beginFill(0x00ffff, 0.5).drawRect(0, 0, useWidth, useHeight);
-			// this.screen.addChild(this.screen.mask);
+			this.screen.mask = new PIXI.Graphics().beginFill(0x00ffff, 0.5).drawRect(0, 0, useWidth, useHeight);
+			this.screen.addChild(this.screen.mask);
 		}
 
 		// set values in the context for nodes to understand the screen size
