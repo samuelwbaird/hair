@@ -34,4 +34,12 @@ class CharacterModel {
 		this.name = takeOne(firstNames) + ' ' + takeOne(lastNames);
 		this.role = takeOne(roles);
 	}
+	
+	idleAnimation () {
+		return this.role.sprite + '_idle';
+	}
+	
+	randomAnimation () {
+		return this.role.sprite + '_attack' + (1 + Math.floor(Math.random() * 3));
+	}
 }

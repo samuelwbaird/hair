@@ -21,8 +21,9 @@ export async function loadAssetsAndLaunch (parent) {
 
 	// load assets via pixi
 	await hp.assets.loadSpritesheet('assets/backgrounds.json');
-	await hp.assets.loadSpritesheet('assets/sprites.json');
-	
+	const sprites = await hp.assets.loadSpritesheet('assets/sprites.json');
+	sprites.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST;
+		
 	const game = new model.GameModel();
 	app.setView(() => h.compose(game, () => { return characterView(game); }));
 }
@@ -47,7 +48,7 @@ function appView (app) {
 			h.div({ class: 'scene' }, [
 				h.element('canvas', hp.pixi_canvas((c) => {
 					// set logical sizing of the canvas when its created
-					c.setLogicalSize(320, 480, 400);
+					c.setLogicalSize(240, 480, 540);
 				})),
 			]),
 		]),
@@ -61,8 +62,8 @@ function appView (app) {
 function loadingScene () {
 	return new hp.AdhocPixiNode((node) => {
 		node.view.create([
-			{ rect: 0x777777, x: 10, y: 10, width: 320, height: 320 },
-			{ x: 160, y: 40, text: 'PIXI.js', align: 'center' },
+			{ rect: 0x777777, x: 0, y: 0, width: node.context.get('screenWidth'), height: node.context.get('screenHeight') },
+			{ x: 10, y: 10, text: 'PIXI.js', align: 'left' },
 		]);
 	});
 }

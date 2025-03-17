@@ -135,6 +135,12 @@ export function onAnyFrame (action, owner) {
 	return delayedAction;
 }
 
+export function requireNextFrame () {
+	if (!frameIsRequested) {
+		requestFrameTimer(true);		
+	}
+}
+
 export function cancel (owner) {
 	if (!owner) {
 		return;
@@ -171,8 +177,8 @@ export function getFrameStartTime() {
 	}
 }
 
-function requestFrameTimer () {
-	if (frameIsRequested || delayedActions.length == 0) {
+function requestFrameTimer (force = false) {
+	if (frameIsRequested || (!force && delayedActions.length == 0)) {
 		return;
 	}
 
@@ -184,11 +190,15 @@ function requestFrameTimer () {
 
 	// work out if a long delay or short delay is needed next
 	let next = false;
-	let i = delayedActions.length;
-	while (--i >= 0) {
-		if (!delayedActions[i].doesNotRequestFrames) {
-			next = delayedActions[i].time;
-			break;
+	if (force) {
+		next = 0;
+	} else {
+		let i = delayedActions.length;
+		while (--i >= 0) {
+			if (!delayedActions[i].doesNotRequestFrames) {
+				next = delayedActions[i].time;
+				break;
+			}
 		}
 	}
 	if (next === false) {

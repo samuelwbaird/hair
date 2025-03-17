@@ -70,27 +70,28 @@ canvas {
 }
 
 button {
+	display: inline-block;
 	align-self: center;
+	
 	background-color: #fff;
 	background-image: none;
 	background-position: 0 90%;
 	background-repeat: repeat no-repeat;
 	background-size: 4px 3px;
+	
 	border-radius: 15px 225px 255px 15px 15px 255px 225px 15px;
 	border-style: solid;
 	border-width: 2px;
 	box-shadow: rgba(0, 0, 0, .2) 15px 28px 25px -18px;
 	box-sizing: border-box;
+	
 	color: #41403e;
 	cursor: pointer;
-	display: inline-block;
+	outline: none;
 	font-family: Avenir, sans-serif;
 	font-size: 1.25em;
-	line-height: 23px;
-	outline: none;
-	padding: .5em;
+		
 	text-decoration: none;
-
 	transition: all 100ms ease-in-out;
 
 	border-bottom-left-radius: 15px 255px;

@@ -286,21 +286,24 @@ export class PixiCanvas {
 	}
 
 	phasePrepareFrame () {
-		this.updateSizing();
-
 		// set scaling and sizing of the canvas element and logical sizing
-		// add in any node if we're switching
-		// dispatch touch events
-		// update animations
-		// update timers
+		this.updateSizing();
+		
+		// prepare through the node tree
+		this.walkNodes('prepare');
 
-		// app = new PIXI.Application(pixiOptions);
-		// if (!app.view.parentNode) {
-		// 	document.body.appendChild(app.view);
-		// }
-		// // set up a screen fit top level container
-		// screen = new PIXI.Container();
-		// app.stage.addChild(screen);
+		// dispatch touch events
+
+		// update animations
+		let callbacks = [];
+		this.walkNodes('updateAnimation', core.frameDeltaSeconds, (callback) => {
+			callbacks.push(callback);
+		});
+		for (const callback of callbacks) {
+			callback();
+		}
+
+		// update timers
 	}
 
 	phaseRenderFrame () {
@@ -368,11 +371,12 @@ export class PixiCanvas {
 		} else {
 			this.screen.y = 0;
 		}
-		
+
 		// create a mask
 		if (maskNeeded) {
-			this.screen.mask = new PIXI.Graphics().beginFill(0x00ffff, 0.33).drawRect(0, 0, useWidth, useHeight);
-			this.screen.addChild(this.screen.mask);
+			// gets mispositioned over time?
+			// this.screen.mask = new PIXI.Graphics().beginFill(0x00ffff, 0.5).drawRect(0, 0, useWidth, useHeight);
+			// this.screen.addChild(this.screen.mask);
 		}
 
 		// set values in the context for nodes to understand the screen size
@@ -389,6 +393,12 @@ export class PixiCanvas {
 			action: action,
 		});
 		target.addEventListener(event, action);
+	}
+	
+	walkNodes (method, ...args) {
+		this.nodes.update((node) => {
+			node.walkNodes(method, ...args);
+		});		
 	}
 
 	dispose () {
@@ -458,20 +468,19 @@ export class PixiNode {
 		}
 	}
 
-	tween () {
-		// TODO: wrap hair.tween with this as the owner
+	tween (target, properties, timing) {
+		return tween_lib.tween(target, properties, timing, this);
 	}
 
-	delay () {
-		// TODO: wrap hair.delay wih this as the owner
+	async asyncTween (target, properties, timing) {
+		return tween_lib.asyncTween(target, properties, timing, this);
 	}
-
-	hook () {
-		// TODO: wrap hair.onEveryFrame with this as the owner
+	
+	delay (seconds, action) {
+		core.delay(seconds, action, this);
 	}
 
 	// TODO: coroutines...
-	// TODO: update (delta) pre any render
 	// TODO: some kind of tree walk, or tree walk for views updating animations (maybe from canvas)
 
 	// TODO: send or respond to events within the context tree
@@ -481,6 +490,22 @@ export class PixiNode {
 
 	onBroadcast (eventName, eventData) {
 
+	}
+	
+	updateAnimation (delta, withCallbacks) {
+		this.view.updateAnimation(delta, withCallbacks);
+	}
+	
+	walkNodes (method, ...args) {
+		if (this[method]) {
+			this[method](...args);
+		}
+
+		if (this.children) {
+			this.children.update((node) => {
+				node.walkNodes(method, ...args);
+			});		
+		}
 	}
 
 	addDisposable (disposable) {
@@ -511,6 +536,8 @@ export class PixiNode {
 			}
 			this.disposables = null;
 		}
+		
+		core.markObjectAsDisposed(this);
 	}
 
 }
@@ -788,6 +815,18 @@ class PixiView extends PIXI.Container {
 			console.assert('unrecognised pixiview spec');
 		}
 	}
+	
+	updateAnimation (delta, withCallbacks) {
+		if (this.children) {
+			for (const child of this.children) {
+				if (child instanceof PixiClip) {
+					child.updateAnimation(delta, withCallbacks);
+				} else if (child instanceof PixiView) {
+					child.updateAnimation(delta, withCallbacks);
+				}
+			}
+		}
+	}
 
 	addTouchArea (target, boundsOrPadding) {
 		// convert a canvas co-ord to target space
@@ -847,6 +886,8 @@ export class PixiClip extends PIXI.Container {
 	}
 
 	play (animation, loopOrOncomplete) {
+		core.requireNextFrame();
+		
 		if (typeof animation == 'string') {
 			animation = animations[animation];
 		}
@@ -914,7 +955,9 @@ export class PixiClip extends PIXI.Container {
 			this.setFrame(frame);
 		}
 
-		if (!this.isPlaying) {
+		if (this.isPlaying) {
+			core.requireNextFrame();
+		} else {
 			if (this.onComplete) {
 				withCallbacks(this.onComplete);
 				this.onComplete = null;
