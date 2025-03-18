@@ -271,6 +271,10 @@ class DelayedAction {
 		// override this with another number to control how timer events are sorted within the same timeslice
 		this.phase = 0;
 	}
+	
+	cancel () {
+		cancel(this);
+	}
 }
 
 

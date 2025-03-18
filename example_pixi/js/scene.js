@@ -25,13 +25,18 @@ export class CharacterScene extends hp.PixiView {
 		])
 		
 		// register a touch handler to animate on tap
-		h.delay(Math.random() * 3, () => { this.randomAnimation(); });
+		this.animationDelay = h.delay(Math.random() * 3, () => { this.randomAnimation(); });
 	}
 	
 	randomAnimation () {
+		if (this.animationDelay) {
+			this.animationDelay.cancel();
+			this.animationDelay = null;
+		}
+		
 		this.character_clip.play(this.character.randomAnimation(), () => {
 			this.character_clip.play(this.character.idleAnimation(), true);
-			h.delay(Math.random() * 3, () => { this.randomAnimation(); });
+			this.animationDelay = h.delay(Math.random() * 3, () => { this.randomAnimation(); });
 		});
 	}
 	
@@ -40,8 +45,7 @@ export class CharacterScene extends hp.PixiView {
 		// align this view with the center of the screen
 		this.x = this.pixi_canvas.width * 0.5;
 		this.gradient.scale.x = (this.pixi_canvas.width / 50);
-		this.gradient.scale.y = (this.pixi_canvas.height - 320) / 50;
-		
+		this.gradient.scale.y = (this.pixi_canvas.height - 320) / 50;		
 	}
 	
 }

@@ -32,6 +32,14 @@
 //   PixiClip
 //   TouchArea
 
+
+// TODO:
+// -- check that delays and tweens return an individually cancellable object, if not then implement a token(owner)
+// -- how to set properties on the top level pixi view, in the create spec, apply a spec with no created object to the view itself, eg. { x: ?, y: ? }
+// * create core.schedule(asycn (fiber) => { }), to run coroutines as async functions, fiber.wait() fiber.wait(time), fiber.wait(condition)
+// * wrap delay, tween and schedule on PixiView to automatically set the view as the owner
+// * how to correctly parent pixi views? unclear if pixi view can have child components, or use compose to achieve this
+
 import * as core from './hair.core.js';
 import * as html from './hair.html.js';
 
@@ -372,6 +380,22 @@ export class PixiView extends PIXI.Container {
 	// 	// create this method to prepare during every triggered render cycle
 	// }
 
+	delay (seconds, action) {
+		return core.delay(seconds, action, this);
+	}
+
+	tween (...args) {
+		return core.tween();
+	}
+	
+	tween(target, properties, timing) {
+		return core.tween(target, properties, timing, this);
+	}
+
+	async asyncTween(target, properties, timing) {
+		return core.asyncTween(target, properties, timing, this);
+	}	
+
 	get linearScale () {
 		return (this.scale.x + this.scale.y) * 0.5;
 	}
@@ -407,6 +431,10 @@ export class PixiView extends PIXI.Container {
 		pixiObj.rotation = spec.rotation ?? 0;
 		pixiObj.visible = (spec.visible !== undefined ? spec.visible : true);
 
+		if (pixiObj == this) {
+			return;
+		}
+		
 		// add to scene tree
 		this.addChild(pixiObj);
 
@@ -535,6 +563,9 @@ export class PixiView extends PIXI.Container {
 
 		} else if (spec.text !== undefined) {
 			return this.addText(spec);
+			
+		} else if (spec.parent) {
+			this.addToSpec(this, spec);
 
 		} else {
 			console.assert('unrecognised pixiview spec');
