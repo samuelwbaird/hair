@@ -275,9 +275,8 @@ export class PixiCanvas {
 
 		// assume if the window resizes we need to re-render
 		this.listen(window, 'resize', () => {
-			core.onNextFrame(() => {
-				// do nothing, but this makes sure a render is triggered
-			});
+			// do nothing, but this makes sure a render is triggered
+			core.requireNextFrame();
 		});
 
 		this.context.set('app', this.pixiApp);
@@ -865,7 +864,6 @@ class PixiView extends PIXI.Container {
 
 // PixiClip
 // an animated view object, driven from loaded animation data
-// currently limited to
 export class PixiClip extends PIXI.Container {
 
 	constructor () {
@@ -1071,30 +1069,6 @@ class UpdateList {
 		return didRemove;
 	}
 
-	clear () {
-		// cancel the fast path if we're in an iteration
-		this.enableSlowPathIterationIfRequired();
-
-		// clear our actual list
-		this.list = [];
-	}
-
-	isClear () {
-		return this.list.length == 0;
-	}
-
-	first () {
-		return this.list[0].obj;
-	}
-
-	last () {
-		return this.list[this.list.length - 1].obj;
-	}
-
-	length () {
-		return this.list.length;
-	}
-
 	update (updateFunction, removeONReturnTrue) {
 		// if we're already in an iteration, don't allow it to recurse
 		if (this.isIterating) {
@@ -1166,15 +1140,4 @@ class UpdateList {
 		}
 	}
 
-	cloneUpdate (updateFunction, removeONReturnTrue) {
-		const clone = this.list.concat();
-		for (const entry of clone) {
-			if (updateFunction(entry.obj) === true && removeONReturnTrue) {
-				const index = this.list.indexOf(entry);
-				if (index > -1) {
-					this.list.splice(index, 1);
-				}
-			}
-		}
-	}
 }

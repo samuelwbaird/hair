@@ -11,7 +11,6 @@ export class CharacterScene extends hp.PixiNode {
 	
 	begin () {
 		super.begin();
-		console.log('CharacterScene::begin', this.character.name);		
 		
 		// create the background
 		this.view.create([
