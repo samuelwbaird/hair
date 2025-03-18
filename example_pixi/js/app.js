@@ -59,18 +59,12 @@ function appView (app) {
 	];
 }
 
-function loadingScene () {
-	return new hp.AdhocPixiNode((node) => {
-		node.view.create([
-			{ rect: 0x777777, x: 0, y: 0, width: node.context.get('screenWidth'), height: node.context.get('screenHeight') },
-			{ x: 10, y: 10, text: 'PIXI.js', align: 'left' },
-		]);
-	});
-}
-
-function loadingView () {
+function loadingView (model, context) {
 	return h.div({ class: 'loading-ui' }, [
-		hp.pixi_node(() => { return loadingScene() }),
+		hp.pixi_view([
+			{ rect: 0x777777, x: 0, y: 0, width: 540, height: 480 },
+			{ x: 10, y: 10, text: 'PIXI.js', align: 'left' },
+		]),
 		h.div(),
 		h.div('Loading'),
 	]);
@@ -78,7 +72,7 @@ function loadingView () {
 
 function characterView(model) {
 	return [
-		hp.pixi_node(() => { return new scene.CharacterScene(model.character); }, model.character),
+		hp.pixi_view(() => { return new scene.CharacterScene(model.character); }, model.character),
 		h.div({ class: 'character-ui' }, [
 			h.div(),
 			h.div({ class: 'slug' }, model.character.name),

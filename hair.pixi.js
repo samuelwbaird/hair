@@ -6,7 +6,7 @@
 // adding a PixiCanvas component to manage the integration.
 //
 // This will be registeted in the render context tree, anywhere in the rest of the tree add
-// a pixi_node
+// a pixi_view, and control it using the timing and tweening and updates from hair
 //
 // import * as h from 'hair.js';
 // import * as hp from 'hair-pixi.js';
@@ -16,16 +16,10 @@
 //    h.element('canvas', { class: 'game-canvas' }, hp.pixi_canvas(canvas) => {
 //      canvas.setLogicalSize(480, 320);
 //    }, ...reuseKeys),
-//    hp.pixi_node(() => {
-//      // provide a constructor to add an associate pixi node, an object that extends PixiNode
-//      return new GameScene();
-//    }, ...reuseKeys),
-//    hp.pixi_view((view) => {
-//		// create or update a pixi view on each render
-//    }, ...reuseKeys);
-//    hp.pixi_begin((node) => {
-//		// attach an anonymous pixi node and provide a begin method on first attach
-//    }, ...reuseKeys);
+//    hp.pixi_view([
+//      // create spec
+//    ], ...reuseKeys),
+//    hp.pixi_view(() => { return new SceneView(); }, ...reuseKeys),
 // ];
 //
 // Reference
@@ -34,21 +28,14 @@
 //   assets
 //
 //   PixiCanvas    wraps the DOM canvas, handles sizing, render and dispatches touch events
-//
-//   PixiNode      logical tree of objects operating a pixi node (each has a PixiView view)
 //   PixiView      a pixi container view with convenience methods to quickly scaffold pixi display objects
 //   PixiClip
 //   TouchArea
-//
-//   NodeContext	forwards information through the pixi node heirarchy (which is separate to the html node heirarchy)
-//   UpdateList			a list that can be safely updated during iteration
 
 import * as core from './hair.core.js';
 import * as html from './hair.html.js';
-import * as tween_lib from './hair.tween.js';
 
 // -- public interface ----------------------------------------------------------------------
-
 
 // -- create pixi elements within the hair render -----------------------------------------------
 
@@ -75,75 +62,43 @@ export function pixi_canvas (withCanvas, ...reuseKeys) {
 	}, ...reuseKeys);
 }
 
-// attach an object that is a subclass of PixiNode, the view is added to the canvas
-export function pixi_node (nodeConstructor, ...reuseKeys) {
-	return html.onContext((contextListener) => {
-		const pixi_canvas = contextListener.context.get('pixi_canvas');
-		if (!pixi_canvas) {
-			throw new Error('There must be a pixi canvas within the context tree to create a node.');
-		}
-
-		let node = null;
-		contextListener.onAttach = (context, element) => {
-			pixi_canvas.withAvailableView(() => {
-				node = nodeConstructor(context);
-				pixi_canvas.addNode(node);
-			}, contextListener);
-		};
-		contextListener.onBroadcast = (eventName, eventData) => {
-			node.onBroadcast(eventName, eventData);
-		};
-		contextListener.onRemove = (context, element) => {
-			if (node) {
-				pixi_canvas.removeNode(node);
-				node = null;
-			}
-		};
-	}, ...reuseKeys);
-}
-
 // create or update a pixi view on each render
-export function pixi_view (viewUpdateFunction, ...reuseKeys) {
+export function pixi_view (createSpecOrConstructor, ...reuseKeys) {
 	return html.onContext((contextListener) => {
 		const pixi_canvas = contextListener.context.get('pixi_canvas');
 		if (!pixi_canvas) {
 			throw new Error('There must be a pixi canvas within the context tree to create a node.');
 		}
 
-		// if the view update function is an array, assume its a create spec
-		if (Array.isArray(viewUpdateFunction)) {
-			const createSpec = viewUpdateFunction;
-			viewUpdateFunction = (view) => {
-				view.create(createSpec);
-			};
-		}
-
-		let node = null;
+		// set the view in the context to be the parent
+		let view = null;
 		contextListener.onAttach = (context, element) => {
-			pixi_canvas.withAvailableView(() => {
-				node = new PixiNode();
-				pixi_canvas.addNode(node);
-				viewUpdateFunction(node.view);
-			}, contextListener);
-		};
-		contextListener.onUpdate = (context, element) => {
-			if (node != null) {
-				viewUpdateFunction(node.view);
-			}
+			pixi_canvas.withAvailableScreen(() => {
+				let parent = context.get('pixi_parent');
+				if (parent == null) {
+					parent = pixi_canvas.screen;
+				}
+
+				if (Array.isArray(createSpecOrConstructor)) {
+					view = new PixiView();
+					view.attach(pixi_canvas, context);
+					parent.addChild(view);
+					view.create(createSpecOrConstructor);
+				} else {
+					view = createSpecOrConstructor(context);
+					view.attach(pixi_canvas, context);
+					parent.addChild(view);
+					view.begin();
+				}
+			});
 		};
 		contextListener.onRemove = (context, element) => {
-			if (node) {
-				pixi_canvas.removeNode(node);
-				node = null;
+			if (view) {
+				core.markObjectAsDisposed(view);
+				view.parent.removeChild(view);
+				view = null;
 			}
 		};
-	}, ...reuseKeys);
-}
-
-// attach an anonymous pixi node and provide a begin method on first attach
-export function pixi_begin (nodeBeginFunction, ... reuseKeys) {
-	return pixi_node(() => {
-		return new AdhocPixiNode(nodeBeginFunction);
 	}, ...reuseKeys);
 }
 
@@ -184,17 +139,14 @@ export const assets = {
 
 // set some default fonts
 assets.setFontStyle('default', { align: 'center', fill: 0xffffff, fontFamily: 'sans-serif', fontWeight: 'normal', fontSize: 11, padding: 4 });
-assets.setFontStyle('button', { align: 'center', fill: 0x000000, fontFamily: 'sans-serif', fontWeight: 'normal', fontSize: 11, padding: 4 });
 
 // -------------------------------------------------------------------------------------------------
-
-
 
 // -- PixiCanvas renders canvas in the hair render heirarchy and integrates it into timers ------------
 
 const PHASE_CONFIG = -10;
 const PHASE_PREPARE_FRAME = -9;
-const PHASE_ADD_NODE = -8;
+const PHASE_LATE_PREPARE = -8;
 const PHASE_RENDER_FRAME = 10;
 
 export class PixiCanvas {
@@ -205,7 +157,6 @@ export class PixiCanvas {
 		this.screen = null;
 
 		// top level pixi nodes attached to the canvas
-		this.nodes = new UpdateList();
 		this.listeners = [];
 	}
 
@@ -224,11 +175,6 @@ export class PixiCanvas {
 		}
 		this.canvas = canvas;
 
-		this.context = new NodeContext(hairRenderContext, {
-			canvas: this.canvas,
-			pixiCanvas: this,
-		});
-
 		// set up phased frame events
 		core.onAnyFrame(() => { this.phasePrepareFrame(); }, this).phase = PHASE_PREPARE_FRAME;
 		core.onAnyFrame(() => { this.phaseRenderFrame(); }, this).phase = PHASE_RENDER_FRAME;
@@ -237,25 +183,13 @@ export class PixiCanvas {
 		core.onNextFrame(() => { this.phaseConfig(); }, this).phase = PHASE_CONFIG;
 	}
 
-	addNode (node) {
-		this.nodes.add(node);
-		node.context = new NodeContext(this.context);
-		node.begin();
-	}
-
-	removeNode (node) {
-		if (this.nodes.remove(node)) {
-			node.dispose();
-		}
-	}
-
-	withAvailableView (action, owner) {
+	withAvailableScreen (action, owner) {
 		if (this.pixiApp) {
 			action();
 		} else {
 			core.onNextFrame(() => {
 				action();
-			}, owner).phase = PHASE_ADD_NODE;
+			}, owner).phase = PHASE_LATE_PREPARE;
 		}
 	}
 
@@ -267,7 +201,7 @@ export class PixiCanvas {
 		this.pixiApp = new PIXI.Application(options);
 
 		// set up a screen fit top level container
-		this.screen = new PIXI.Container();
+		this.screen = new PixiView();
 		this.pixiApp.stage.addChild(this.screen);
 
 		// set scaling and sizing of the canvas element and logical sizing
@@ -278,18 +212,14 @@ export class PixiCanvas {
 			// do nothing, but this makes sure a render is triggered
 			core.requireNextFrame();
 		});
-
-		this.context.set('app', this.pixiApp);
-		this.context.set('screen', this.screen);
-		this.context.set('view', this.screen);
 	}
 
 	phasePrepareFrame () {
 		// set scaling and sizing of the canvas element and logical sizing
 		this.updateSizing();
-		
+
 		// prepare through the node tree
-		this.walkNodes('prepare');
+		this.walkViews(this.screen, 'prepare');
 
 		// dispatch touch events
 
@@ -300,7 +230,7 @@ export class PixiCanvas {
 
 		// update animations
 		let callbacks = [];
-		this.walkNodes('updateAnimation', core.frameDeltaSeconds, (callback) => {
+		this.walkViews(this.screen, 'updateAnimation', core.frameDeltaSeconds, (callback) => {
 			callbacks.push(callback);
 		});
 		for (const callback of callbacks) {
@@ -354,7 +284,7 @@ export class PixiCanvas {
 			this.screen.mask.removeFromParent();
 			this.screen.mask = null;
 		}
-		
+
 		if (this.maxWidth && useWidth > this.maxWidth) {
 			this.screen.x = ((useWidth - this.maxWidth) * 0.5) * this.density;
 			useWidth = this.maxWidth;
@@ -362,7 +292,7 @@ export class PixiCanvas {
 		} else {
 			this.screen.x = 0;
 		}
-		
+
 		if (this.maxHeight && useHeight > this.maxHeight) {
 			this.screen.y = ((useHeight - this.maxHeight) * 0.5) * this.density;
 			useHeight = this.maxHeight;
@@ -381,8 +311,6 @@ export class PixiCanvas {
 		// set values in the context for nodes to understand the screen size
 		this.width = useWidth;
 		this.height = useHeight;
-		this.context.set('screenWidth', useWidth);
-		this.context.set('screenHeight', useHeight);
 	}
 
 	listen (target, event, action) {
@@ -393,11 +321,16 @@ export class PixiCanvas {
 		});
 		target.addEventListener(event, action);
 	}
-	
-	walkNodes (method, ...args) {
-		this.nodes.update((node) => {
-			node.walkNodes(method, ...args);
-		});		
+
+	walkViews (view, method, ...args) {
+		if (view[method]) {
+			view[method](...args);
+		}
+		if (view.children) {
+			for (const child of view.children) {
+				this.walkViews(child, method, ...args);
+			}
+		}
 	}
 
 	dispose () {
@@ -407,166 +340,17 @@ export class PixiCanvas {
 			}
 			this.listeners = null;
 		}
-		if (this.nodes) {
-			this.nodes.update((node) => {
-				node.dispose();
-			});
-			this.nodes = null;
-		}
 	}
-
-}
-
-// -- enhanced PIXI functionality ---------------------------------------------------------
-// From here onwards the code is aware of Pixi but not hair.js
-// it provides rich wrappers around pixi functionality, that are then easy to integrate
-// ----------------------------------------------------------------------------------------
-
-// PixiNode, main building block of interactive scenes
-// subclass and override the begin method to set up the node behaviour
-// or create instances of AdhocPixiNode
-
-export class PixiNode {
-
-	begin () {
-		this.view = new PixiView(this);
-		// add to the parent by default
-		this.context.get('view').addChild(this.view);
-		this.context.set('view', this.view);
-		this.addDisposable(this.view);
-	}
-
-	add (child) {
-		if (!this.children) {
-			this.children = new UpdateList();
-		}
-		this.children.add(child);
-
-		child.context = this.context.derive();
-		child.begin();
-
-		return child;
-	}
-
-	remove (child) {
-		if (!this.children) {
-			return;
-		}
-		if (this.children.remove(child)) {
-			child.dispose();
-		}
-	}
-
-	removeAllChildren () {
-		if (this.children) {
-			const oldList = this.children;
-			this.children = null;
-			for (const updateListEntry of oldList.list) {
-				updateListEntry.obj.dispose();
-			}
-		}
-	}
-
-	tween (target, properties, timing) {
-		return tween_lib.tween(target, properties, timing, this);
-	}
-
-	async asyncTween (target, properties, timing) {
-		return tween_lib.asyncTween(target, properties, timing, this);
-	}
-	
-	delay (seconds, action) {
-		core.delay(seconds, action, this);
-	}
-
-	// TODO: coroutines...
-	// TODO: some kind of tree walk, or tree walk for views updating animations (maybe from canvas)
-
-	// TODO: send or respond to events within the context tree
-	broadcast (eventName, eventData) {
-
-	}
-
-	onBroadcast (eventName, eventData) {
-
-	}
-	
-	updateAnimation (delta, withCallbacks) {
-		this.view.updateAnimation(delta, withCallbacks);
-	}
-	
-	walkNodes (method, ...args) {
-		if (this[method]) {
-			this[method](...args);
-		}
-
-		if (this.children) {
-			this.children.update((node) => {
-				node.walkNodes(method, ...args);
-			});		
-		}
-	}
-
-	addDisposable (disposable) {
-		if (!this.disposables) {
-			this.disposables = [];
-		}
-		this.disposables.push(disposable);
-		return disposable;
-	}
-
-	dispose () {
-		if (this.children) {
-			this.children.update((child) => {
-				child.dispose();
-			});
-			this.children = null;
-		}
-
-		if (this.disposables) {
-			for (const disposable of this.disposables) {
-				if (typeof disposable == 'function') {
-					disposable();
-				} else if (disposable.dispose) {
-					disposable.dispose();
-				} else {
-					throw 'cannot dispose ' + disposable;
-				}
-			}
-			this.disposables = null;
-		}
-		
-		core.markObjectAsDisposed(this);
-	}
-
-}
-
-// a convenience for when a node only requires a custom begin method and no other specific functionality
-export class AdhocPixiNode extends PixiNode {
-
-	constructor (adhocBeginMethod) {
-		super();
-		this.adhocBeginMethod = adhocBeginMethod;
-	}
-
-	begin () {
-		super.begin();
-		this.adhocBeginMethod(this);
-	}
-
 }
 
 // PixiView
 // a heavyweight pixi view object with convenience methods to construct child elements
 // and quickly scaffold a set of pixi objects, integrating touch
 // each pixiview is linked to a node which provides interaction, timers and lifecycle
-class PixiView extends PIXI.Container {
+export class PixiView extends PIXI.Container {
 
-	constructor (node) {
+	constructor () {
 		super();
-		this.app = app;
-		this.assets = assets;
-		this.node = node;
 
 		// created elements
 		this.createdElements = [];
@@ -574,6 +358,19 @@ class PixiView extends PIXI.Container {
 		// we're not using the pixi event system
 		this.eventMode = 'none';
 	}
+
+	attach (pixi_canvas, context) {
+		this.pixi_canvas = pixi_canvas;
+		this.context = context;
+	}
+
+	begin () {
+		// override this method to set up an action on first update after attaching
+	}
+
+	// prepare () {
+	// 	// create this method to prepare during every triggered render cycle
+	// }
 
 	get linearScale () {
 		return (this.scale.x + this.scale.y) * 0.5;
@@ -628,7 +425,7 @@ class PixiView extends PIXI.Container {
 
 	// individual creator/adder functions
 	addSubview (spec) {
-		return this.addToSpec(new PixiView(this.node), spec);
+		return this.addToSpec(new PixiView(), spec);
 	}
 
 	addRect (spec) {
@@ -689,74 +486,6 @@ class PixiView extends PIXI.Container {
 		return this.addRect({ x: 0, y: 0, width: screen.screenWidth, height: screen.screenHeight, color: color, alpha: alpha });
 	}
 
-	createButton (spec) {
-		// convenient greybox buttons
-		if (spec.greyboxButton) {
-			spec.text = spec.greyboxButton;
-			spec.colorUp = 0xeeeeee;
-			spec.colorDown = 0xbbbbbb;
-			spec.font = spec.font ?? 'button';
-			spec.color = spec.color ?? 'black';
-		}
-
-		// create a button with up and down states as child elements
-		const button = this.addSubview({
-			// the id will be the button id
-			id: spec.id ?? spec.button,
-			x: spec.x,
-			y: spec.y,
-			alpha: spec.alpha,
-			visible: spec.visible,
-			scale: spec.scale,
-			rotation: spec.rotation,
-		});
-
-		// button expects two child views
-		const down = button.addSubview({ id: 'down', visible : false });
-		const up = button.addSubview({ id: 'up' });
-
-		// what width and height are we using (default, or set by the image if not given)
-		let width = spec.width;
-		let height = spec.height;
-		if (spec.imageUp) {
-			const imageUp = up.addSprite({
-				sprite: spec.imageUp,
-			});
-			width = width ?? imageUp.width;
-			height = height ?? imageUp.height;
-		}
-		if (spec.imageDown) {
-			down.addSprite({ sprite: spec.imageDown });
-		}
-
-		// set a default/debug width and height if not given
-		width = width ?? 120;
-		height = height ?? 30;
-
-		// add plain colour backing if called for
-		if (spec.colorDown) {
-			down.addRect({ rect: spec.colorDown, width: width, height: height });
-		}
-		if (spec.colorUp) {
-			up.addRect({ rect: spec.colorUp, width: width, height: height });
-		}
-
-		// add text label if called for
-		if (spec.text) {
-			const textSpec = { ...spec, id: 'text' };
-			textSpec.x = width * 0.5;
-			textSpec.y = height * 0.5;
-			textSpec.align = 'center';
-			up.addText(textSpec);
-			down.addText(textSpec);
-		}
-
-		if (spec.action) {
-			button.button = this.addButton(button, spec.action);
-		}
-		return button;
-	}
-
 	// remove all created items and clear references
 	clear () {
 		for (const created of this.createdElements) {
@@ -781,10 +510,7 @@ class PixiView extends PIXI.Container {
 			return this.create(spec());
 		}
 
-		if (spec.button !== undefined || spec.greyboxButton !== undefined) {
-			return this.createButton(spec);
-
-		} else if (spec.children !== undefined) {
+		if (spec.children !== undefined) {
 			// if this spec has children then all its content must be in a new subview
 			const view = this.addSubview(spec);
 			view.create(spec.children);
@@ -814,18 +540,6 @@ class PixiView extends PIXI.Container {
 			console.assert('unrecognised pixiview spec');
 		}
 	}
-	
-	updateAnimation (delta, withCallbacks) {
-		if (this.children) {
-			for (const child of this.children) {
-				if (child instanceof PixiClip) {
-					child.updateAnimation(delta, withCallbacks);
-				} else if (child instanceof PixiView) {
-					child.updateAnimation(delta, withCallbacks);
-				}
-			}
-		}
-	}
 
 	addTouchArea (target, boundsOrPadding) {
 		// convert a canvas co-ord to target space
@@ -850,11 +564,6 @@ class PixiView extends PIXI.Container {
 		}
 
 		return this.node.addDisposable(new ui.TouchArea(pointConversion, areaTest, this.node.context.get('event_dispatch')));
-	}
-
-	addButton (target, onClick) {
-		const touchArea = this.addTouchArea(target);
-		return this.node.addDisposable(new ui.Button(target, touchArea, this.node.getFrameDispatch(), onClick));
 	}
 
 	dispose () {
@@ -885,7 +594,7 @@ export class PixiClip extends PIXI.Container {
 
 	play (animation, loopOrOncomplete) {
 		core.requireNextFrame();
-		
+
 		if (typeof animation == 'string') {
 			animation = animations[animation];
 		}
@@ -987,157 +696,5 @@ export class PixiClip extends PIXI.Container {
 }
 
 class TouchArea {
-
-}
-
-// -- internal utilities ---------------------------------------------------------------------
-// From here below, code is not aware of Pixi or hair specifics
-
-// NodeContext, forwards information down a node heirarchy
-class NodeContext {
-
-	constructor (parent, initialValues = null) {
-		this.parent = parent;
-		this.contextValues = new Map();
-		if (initialValues) {
-			for (const [k, v] of Object.entries(initialValues)) {
-				this.set(k, v);
-			}
-		}
-	}
-
-	// set a value or reference at this level of the context
-	set (name, value) {
-		this.contextValues.set(name, value);
-	}
-
-	// get a value stored in this or any parent context
-	get (name, defaultValue = null) {
-		if (this.contextValues.has(name)) {
-			return this.contextValues.get(name);
-		}
-		if (this.parent) {
-			return this.parent.get(name, defaultValue);
-		}
-		return defaultValue;
-	}
-
-}
-
-// a list that allows update during iteration in an ordered manner
-class UpdateList {
-
-	constructor () {
-		this.list = [];
-
-		// control updates during iteration
-		this.isIterating = false;
-		this.iterationIndex = 0;
-
-		// these are only create if an interruption to fast path occurs
-		this.slowPathToComplete = null;
-	}
-
-	add (obj, tag) {
-		// capture the slow path here before objects are added this update cycle
-		this.enableSlowPathIterationIfRequired();
-
-		this.list.push({
-			obj: obj,
-			tag: tag,
-		});
-
-		return obj;
-	}
-
-	remove (objOrTag) {
-		// cancel the fast path if we're in an iteration
-		this.enableSlowPathIterationIfRequired();
-
-		let didRemove = false;
-		let i = 0;
-		while (i < this.list.length) {
-			const entry = this.list[i];
-			if (entry.obj == objOrTag || entry.tag == objOrTag) {
-				this.list.splice(i, 1);
-				didRemove = true;
-			} else {
-				i++;
-			}
-		}
-
-		return didRemove;
-	}
-
-	update (updateFunction, removeONReturnTrue) {
-		// if we're already in an iteration, don't allow it to recurse
-		if (this.isIterating) {
-			return;
-		}
-
-		// markers to begin the iteration in fast path
-		this.isIterating = true;
-
-		// begin on a fast path, iterating by index and removing complete updates as required
-		// avoid creation of temporary objects unless update during iteration requires it
-		let i = 0;
-		let length = this.list.length;
-		while (i < length && this.slowPathToComplete == null) {
-			// save this marker in case we drop off the fast path
-			this.iterationIndex = i;
-
-			// check this entry, update and remove if required
-			const entry = this.list[i];
-			if (updateFunction(entry.obj) === true && removeONReturnTrue) {
-				// if we've jumped onto the slow path during the update then be careful here
-				if (this.slowPathToComplete != null) {
-					const postUpdateIndex = this.list.indexOf(entry);
-					if (postUpdateIndex >= 0) {
-						this.list.splice(postUpdateIndex, 1);
-					}
-				} else {
-					this.list.splice(i, 1);
-					length--;
-				}
-			} else {
-				i++;
-			}
-		}
-
-		// if we've dropped off the fast path then complete the iteration on the slow path
-		if (this.slowPathToComplete != null) {
-			// complete all that haven't been removed since we started the slow path
-			for (const entry of this.slowPathToComplete) {
-				// first check this entry is still in the real list
-				const currentIndex = this.list.indexOf(entry);
-				if (currentIndex >= 0) {
-					if (updateFunction(entry.obj) === true && removeONReturnTrue) {
-						// find and remove it from the original list, if its still in after the update function
-						const postUpdateIndex = this.list.indexOf(entry);
-						if (postUpdateIndex >= 0) {
-							this.list.splice(postUpdateIndex, 1);
-						}
-					}
-				}
-			}
-		}
-
-		// clear flags and data that can be accumulated during iteration
-		this.slowPathToComplete = null;
-		this.isIterating = false;
-	}
-
-	enableSlowPathIterationIfRequired () {
-		// only do this if we haven't already for this iteration
-		if (!this.isIterating || this.slowPathToComplete != null) {
-			return;
-		}
-
-		// capture a copy of everything we need to complete on the remainder of the fast path
-		this.slowPathToComplete = [];
-		for (let i = this.iterationIndex + 1; i < this.list.length; i++) {
-			this.slowPathToComplete.push(this.list[i]);
-		}
-	}
 
 }
