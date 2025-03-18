@@ -11,11 +11,11 @@
 //   linear(5, 2)								// 5 second transition, 2 second delay before beginning
 //   linear(5, () => { afterComplete() })		// 5 second transition, onComplete
 //   linear(5, 2, () => { afterComplete() })	// 5 second transition, 2 second delay, onComplete
-// 
+//
 // There are functions to create linear, easeIn, easeOut or easeInOut timing, or "interpolate" to
 // easily create custom easing. interpolate begins with an array of values, normally from 0 to 1
 // defining a ratio of transition, where 0 = the original state and 1 = the target state) occuring
-// at steady intervals across the given tween duration. 
+// at steady intervals across the given tween duration.
 //   interpolate([0, 1], 5);						// 5 second linear transition
 //   interpolate([0, 0.8, 1.05, 0.975, 1], 0.5);	// 0.5 second tween with a slight "bounce past" the target start
 //
@@ -34,11 +34,11 @@ export function tween(target, properties, timing, owner = null) {
 	if (typeof timing == 'number') {
 		timing = linear(timing);
 	}
-	
+
 	return new Tween(target, properties, timing, owner)
 }
 
-export function asyncTween(target, properties, timing, owner = null) {	
+export function asyncTween(target, properties, timing, owner = null) {
 	return new Promise((resume) => {
 		const t = tween(target, properties, timing, owner);
 		const originalOnComplete = t.timing.onComplete;
@@ -58,7 +58,7 @@ export function linear(duration, arg1, arg2) {
 }
 
 export function easeIn(duration, arg1, arg2) {
-	return new TweenTiming(_easeInFunction, duration, arg1, arg2);	
+	return new TweenTiming(_easeInFunction, duration, arg1, arg2);
 }
 
 export function easeOut(duration, arg1, arg2) {
@@ -76,7 +76,7 @@ export function interpolate(values, duration, arg1, arg2) {
 		const offset = (ratio * max) - base;
 		if (base >= max) {
 			return values[max];
-		} else {			
+		} else {
 			return (values[base] * (1 - offset)) + (values[base + 1] * offset);
 		}
 	};
@@ -101,8 +101,8 @@ class Tween {
 			core.delay(timing.delay, () => { this.#begin(); }, this.owner);
 		}
 	}
-	
-	#begin () { 
+
+	#begin () {
 		this.startTime = core.getFrameStartTime();
 		this.properties = {}
 		for (const k in this.propertiesRequested) {
@@ -112,12 +112,12 @@ class Tween {
 			this.#update(Math.max(0, Math.min(1, (core.getFrameStartTime() - this.startTime) / (this.timing.duration * 1000))));
 		}, this.owner);
 	}
-	
+
 	#update (transition) {
 		if (core.isObjectDisposed(this) || core.isObjectDisposed(this.owner)) {
 			return;
 		}
-		
+
 		const ratio = this.timing.curveFunction(transition);
 		const inverse = 1 - ratio;
 
@@ -132,14 +132,14 @@ class Tween {
 			return;
 		}
 	}
-	
+
 	complete () {
 		if (core.isObjectDisposed(this) || core.isObjectDisposed(this.owner)) {
 			return;
 		}
 		this.#update(1);
 	}
-	
+
 	cancel () {
 		if (this.timer) {
 			core.cancel(this.timer);
@@ -150,7 +150,7 @@ class Tween {
 		this.properties = null;
 		core.markObjectAsDisposed(this);
 	}
-	
+
 }
 
 const _linearFunction = (v) => { return v; };
@@ -159,7 +159,7 @@ const _easeOutFunction = (v) => { return 1 - ((1 - v) * (1 - v)); };
 const _easeInOutFunction = (v) => { return (_easeInFunction(v) * (1 - v)) + (_easeOutFunction(v) * v); }
 
 // timing = delay, duration, easing, onComplete
-class TweenTiming {	
+class TweenTiming {
 	constructor (curveFunction, duration, arg1, arg2) {
 		this.curveFunction = curveFunction;
 		this.duration = duration;
@@ -196,7 +196,7 @@ function captureTweenProperty (target, property, final) {
 // wrap a DOM element with simple properties that dynamically update its style transform
 class Transform {
 	#x; #y; #scale; #rotation; #opacity;
-	
+
 	constructor (element) {
 		this.element = element;
 		const style = getComputedStyle(element);
@@ -212,19 +212,19 @@ class Transform {
 		}
 		this.#opacity = Number.parseFloat(style.opacity);
 	}
-	
+
 	get x () { return this.#x; }
 	get y () { return this.#y; }
 	get scale () { return this.#scale; }
 	get rotation () { return this.#rotation; }
 	get opacity () { return this.#opacity; }
 
-	set x (value) { this.#x = value; this.#updateTransform(); }	
-	set y (value) { this.#y = value; this.#updateTransform(); }	
-	set scale (value) { this.#scale = value; this.#updateTransform(); }	
-	set rotation (value) { this.#rotation = value; this.#updateTransform(); }	
-	set opacity (value) { this.#opacity = value; this.#updateTransform(); }	
-	
+	set x (value) { this.#x = value; this.#updateTransform(); }
+	set y (value) { this.#y = value; this.#updateTransform(); }
+	set scale (value) { this.#scale = value; this.#updateTransform(); }
+	set rotation (value) { this.#rotation = value; this.#updateTransform(); }
+	set opacity (value) { this.#opacity = value; this.#updateTransform(); }
+
 	#updateTransform () {
 		const radians = (this.#rotation * (Math.PI / 180));
 		const scale = this.#scale;
@@ -232,5 +232,5 @@ class Transform {
 		this.element.style.transform = 'matrix(' + transform.join(',') + ')';
 		this.element.style.opacity = Math.min(1, Math.max(0, this.opacity));
 	}
-	
+
 }

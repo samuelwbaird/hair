@@ -24,20 +24,8 @@ export class CharacterScene extends hp.PixiView {
 			{ x: 30, y: 340, clip: this.character.idleAnimation(), scale: 4, id: 'character_clip', loop: true },
 		])
 		
-		// register a touch handler to animate on tap
-		this.animationDelay = h.delay(Math.random() * 3, () => { this.randomAnimation(); });
-	}
-	
-	randomAnimation () {
-		if (this.animationDelay) {
-			this.animationDelay.cancel();
-			this.animationDelay = null;
-		}
-		
-		this.character_clip.play(this.character.randomAnimation(), () => {
-			this.character_clip.play(this.character.idleAnimation(), true);
-			this.animationDelay = h.delay(Math.random() * 3, () => { this.randomAnimation(); });
-		});
+		// set up an async coroutine fiber to play animations
+		this.schedule((fiber) => { this.showRandomAnimations(fiber); });
 	}
 	
 	// runs ahead of any frame render
@@ -46,6 +34,22 @@ export class CharacterScene extends hp.PixiView {
 		this.x = this.pixi_canvas.width * 0.5;
 		this.gradient.scale.x = (this.pixi_canvas.width / 50);
 		this.gradient.scale.y = (this.pixi_canvas.height - 320) / 50;		
+	}
+	
+	async showRandomAnimations (fiber) {
+		while (true) {
+			// random delay
+			await fiber.wait(1 + Math.random() * 4);
+			// then an animation
+			this.triggerRandomAnimation();
+		}
+	}
+	
+	triggerRandomAnimation () {
+		// play a random animation, then revert to idle
+		this.character_clip.play(this.character.randomAnimation(), () => {
+			this.character_clip.play(this.character.idleAnimation(), true);
+		});
 	}
 	
 }

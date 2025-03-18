@@ -20,6 +20,9 @@ export const onEveryFrame = core.onEveryFrame;
 export const onAnyFrame = core.onAnyFrame;
 export const cancel = core.cancel;
 
+export const wait = core.wait;
+export const schedule = core.schedule;
+
 export const markObjectAsDisposed = core.markObjectAsDisposed;
 export const isObjectDisposed = core.isObjectDisposed;
 

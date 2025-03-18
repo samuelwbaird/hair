@@ -263,7 +263,6 @@ export class PixiCanvas {
 			return;
 		} else {
 			this.screenSpec = screenSpec;
-			console.log(screenSpec);
 		}
 
 		let useWidth = 0;
@@ -383,10 +382,6 @@ export class PixiView extends PIXI.Container {
 	delay (seconds, action) {
 		return core.delay(seconds, action, this);
 	}
-
-	tween (...args) {
-		return core.tween();
-	}
 	
 	tween(target, properties, timing) {
 		return core.tween(target, properties, timing, this);
@@ -394,7 +389,15 @@ export class PixiView extends PIXI.Container {
 
 	async asyncTween(target, properties, timing) {
 		return core.asyncTween(target, properties, timing, this);
-	}	
+	}
+
+	wait (timeOrCondition, conditionCheckPeriod = 0) {
+		return core.wait(timeOrCondition, this, conditionCheckPeriod);
+	}
+	
+	schedule (asyncFiberFunction) {
+		return core.schedule(asyncFiberFunction, this);
+	}
 
 	get linearScale () {
 		return (this.scale.x + this.scale.y) * 0.5;

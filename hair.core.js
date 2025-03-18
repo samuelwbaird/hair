@@ -278,6 +278,55 @@ class DelayedAction {
 }
 
 
+// -- async fibers ---------------------------------------
+// a fiber is a sequence of actions in an async function, that can be cancelled
+
+// use this in async functions, eg. await core.wait(10);
+export function wait (timeOrCondition, owner, conditionCheckPeriod = 0) {
+	const fiber = new Fiber(owner);
+	return fiber.wait(timeOrCondition, conditionCheckPeriod);
+}
+
+export function schedule (asyncFiberFunction, owner) {
+	const fiber = new Fiber(owner);
+	asyncFiberFunction(fiber);
+	return fiber;
+}
+
+class Fiber {
+	constructor (owner) {
+		this.owner = owner;
+		this.delayedAction = null;
+	}
+	
+	wait (timeOrCondition = null, conditionCheckPeriod = 0) {
+		return new Promise((resume) => {
+			if (timeOrCondition == null) {
+				// wait one frame by default
+				this.delayedAction = onNextFrame(resume, this.owner);
+			} else if (typeof timeOrCondition == 'function') {
+				this.delayedAction = timer(conditionCheckPeriod, () => {
+					if (timeOrCondition()) {
+						this.delayedAction.cancel();
+						resume();
+					}
+				}, this.owner);			
+			} else {
+				this.delayedAction = delay(timeOrCondition, resume, this.owner);
+			}
+		});	
+	}
+	
+	cancel () {
+		if (this.delayedAction) {
+			this.delayedAction.cancel();
+			this.delayedAction = null;
+		}
+		markObjectAsDisposed(this);
+	}
+}
+
+
 // -- markObjectAsDisposed / isObjectDisposed ---------------------------------------
 // a globally available system to mark any object as disposed
 // disposed objects are ignored in timers and signals
