@@ -53,23 +53,23 @@ export function cancelTweensOf(target) {
 	core.cancel(target);
 }
 
-export function linear(duration, arg1, arg2) {
-	return new TweenTiming(_linearFunction, duration, arg1, arg2);
+export function linear(duration, ...args) {
+	return new TweenTiming(_linearFunction, duration, ...args);
 }
 
-export function easeIn(duration, arg1, arg2) {
-	return new TweenTiming(_easeInFunction, duration, arg1, arg2);
+export function easeIn(duration, ...args) {
+	return new TweenTiming(_easeInFunction, duration, ...args);
 }
 
-export function easeOut(duration, arg1, arg2) {
-	return new TweenTiming(_easeOutFunction, duration, arg1, arg2);
+export function easeOut(duration, ...args) {
+	return new TweenTiming(_easeOutFunction, duration, ...args);
 }
 
-export function easeInOut(duration, arg1, arg2) {
-	return new TweenTiming(_easeInOutFunction, duration, arg1, arg2);
+export function easeInOut(duration, ...args) {
+	return new TweenTiming(_easeInOutFunction, duration, ...args);
 }
 
-export function interpolate(values, duration, arg1, arg2) {
+export function interpolate(values, duration, ...args) {
 	const max = (values.length - 1);
 	const interpolateFunction = (ratio) => {
 		const base = Math.floor(ratio * max);
@@ -80,7 +80,7 @@ export function interpolate(values, duration, arg1, arg2) {
 			return (values[base] * (1 - offset)) + (values[base + 1] * offset);
 		}
 	};
-	return new TweenTiming(interpolateFunction, duration, arg1, arg2);
+	return new TweenTiming(interpolateFunction, duration, ...args);
 }
 
 export function transform (element) {
@@ -160,20 +160,20 @@ const _easeInOutFunction = (v) => { return (_easeInFunction(v) * (1 - v)) + (_ea
 
 // timing = delay, duration, easing, onComplete
 class TweenTiming {
-	constructor (curveFunction, duration, arg1, arg2) {
+	constructor (curveFunction, duration, ...args) {
 		this.curveFunction = curveFunction;
 		this.duration = duration;
 		this.delay = 0;
 		this.onComplete = null;
-		if (typeof arg1 == 'number') {
-			this.delay = arg1;
-		} else if (typeof arg2 == 'number') {
-			this.delay = arg2;
-		}
-		if (typeof arg1 == 'function') {
-			this.onComplete = arg1;
-		} else if (typeof arg2 == 'function') {
-			this.onComplete = arg2;
+		
+		for (const arg of args) {
+			if (typeof arg == 'number') {
+				this.delay = arg;
+			} else if (typeof arg == 'function') {
+				this.onComplete = arg;
+			} else {
+				throw new Exception('unused tween timing argument ' + JSON.stringify(arg));
+			}
 		}
 	}
 }

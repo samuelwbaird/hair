@@ -13,9 +13,12 @@
 //
 // function gameView () {
 //   return [
+//
 //    h.element('canvas', { class: 'game-canvas' }, hp.pixi_canvas(canvas) => {
 //      canvas.setLogicalSize(480, 320);
 //    }, ...reuseKeys),
+//
+//    // pixi_view (properties, constructor or create spec, ...reuseKeys)
 //    hp.pixi_view([
 //      // create spec
 //    ], ...reuseKeys),
@@ -31,14 +34,6 @@
 //   PixiView      a pixi container view with convenience methods to quickly scaffold pixi display objects
 //   PixiClip
 //   TouchArea
-
-
-// TODO:
-// -- check that delays and tweens return an individually cancellable object, if not then implement a token(owner)
-// -- how to set properties on the top level pixi view, in the create spec, apply a spec with no created object to the view itself, eg. { x: ?, y: ? }
-// * create core.schedule(asycn (fiber) => { }), to run coroutines as async functions, fiber.wait() fiber.wait(time), fiber.wait(condition)
-// * wrap delay, tween and schedule on PixiView to automatically set the view as the owner
-// * how to correctly parent pixi views? unclear if pixi view can have child components, or use compose to achieve this
 
 import * as core from './hair.core.js';
 import * as html from './hair.html.js';
@@ -71,35 +66,88 @@ export function pixi_canvas (withCanvas, ...reuseKeys) {
 }
 
 // create or update a pixi view on each render
-export function pixi_view (createSpecOrConstructor, ...reuseKeys) {
+export function pixi_view (...args) {
+	// consume properties in this order
+	// a properties object, if it is the first argument
+	// a constructor, if it is the first or second argument
+	// a create spec array, if it is the first or second argument
+	// all remaining args are used as reuse keys
+	let constructor = null;
+	let properties = null;
+	let createSpec = null
+	let reuseKeys = [];
+	let index = 0;
+	for (const arg of args) {
+		if (Array.isArray(arg)) {
+			if (createSpec == null && reuseKeys.length == 0) {
+				createSpec = arg;
+			} else {
+				reuseKeys.push(arg);
+			}
+		} else if (typeof arg == 'object') {
+			if (properties == null && createSpec == null && constructor == null) {
+				properties = arg;
+			} else {
+				reuseKeys.push(arg);
+			}
+		} else if (typeof arg == 'function') {
+			if (constructor == null && reuseKeys.length == 0) {
+				constructor = arg;
+			} else {
+				reuseKeys.push(arg);
+			}
+		} else {
+			reuseKeys.push(arg);
+		}			
+	}
+	
 	return html.onContext((contextListener) => {
 		const pixi_canvas = contextListener.context.get('pixi_canvas');
 		if (!pixi_canvas) {
 			throw new Error('There must be a pixi canvas within the context tree to create a node.');
 		}
-
+		
 		// set the view in the context to be the parent
 		let view = null;
 		contextListener.onAttach = (context, element) => {
 			pixi_canvas.withAvailableScreen(() => {
-				let parent = context.get('pixi_parent');
+				// check properties, get the parent from context or direct reference
+				properties = properties ?? {};
+				let parent = properties.parent;
+				if (typeof parent == 'string') {
+					parent = context.get('parent');
+				}
 				if (parent == null) {
 					parent = pixi_canvas.screen;
 				}
-
-				if (Array.isArray(createSpecOrConstructor)) {
+				
+				if (constructor == null) {
 					view = new PixiView();
-					view.attach(pixi_canvas, context);
-					parent.addChild(view);
-					view.create(createSpecOrConstructor);
 				} else {
-					view = createSpecOrConstructor(context);
-					view.attach(pixi_canvas, context);
-					parent.addChild(view);
-					view.begin();
+					view = constructor(context);
 				}
+				view.attach(pixi_canvas, context);
+				parent.addChild(view);
+				
+				// if an ID is given set a reference in the context
+				if (properties.context_id) {
+					context.set(properties.context_id, view);
+				}
+				
+				// apply other properties				
+				view.position.set(properties.x ?? 0, properties.y ?? 0);
+				view.scale.set(properties.scaleX ?? properties.scale ?? 1, properties.scaleY ?? properties.scale ?? 1);
+				view.alpha = properties.alpha ?? 1;
+				view.rotation = properties.rotation ?? 0;
+				view.visible = (properties.visible !== undefined ? properties.visible : true);
+				
+				if (createSpec) {
+					view.create(createSpec);
+				}
+				view.begin();
 			});
 		};
+		
 		contextListener.onRemove = (context, element) => {
 			if (view) {
 				core.markObjectAsDisposed(view);
@@ -117,7 +165,7 @@ export const fontStyles = {};
 
 export const assets = {
 
-	loadJson: async (name) => {
+	loadJSON: async (name) => {
 		const response = await fetch(name);
 		return await response.json();
 	},
@@ -126,7 +174,7 @@ export const assets = {
 		const spritesheet = await PIXI.Assets.load(name);
 		// check for additional animation data in the json
 		// the data for the sprite gets typecast in pixi TS code and loses information, so we have to query it again
-		const json = await assets.loadJson(name);
+		const json = await assets.loadJSON(name);
 		if (json.clips) {
 			for (const k in json.clips) {
 				animations[k] = json.clips[k];
@@ -445,6 +493,11 @@ export class PixiView extends PIXI.Container {
 		if (spec.id && !this[spec.id]) {
 			this[spec.id] = pixiObj;
 		}
+		// on the context too if required
+		if (spec.context_id) {
+			this.context.set(spec.context_id, pixiObj);
+		}
+		
 		// allow clean up
 		this.createdElements.push({
 			id: spec.id,
@@ -567,9 +620,6 @@ export class PixiView extends PIXI.Container {
 		} else if (spec.text !== undefined) {
 			return this.addText(spec);
 			
-		} else if (spec.parent) {
-			this.addToSpec(this, spec);
-
 		} else {
 			console.assert('unrecognised pixiview spec');
 		}

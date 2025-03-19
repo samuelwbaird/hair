@@ -79,11 +79,11 @@ export function createElements (parent, state, component, initialContextValues =
 
 // construct an element spec for rendering with variable arguments
 // arguments in any order can include a string of text content, a property object, and child components
-export function element (type, arg1, arg2, arg3) {
+export function element (type, ...args) {
 	let properties = null;
 	let children = [];
 
-	for (const arg of  [arg1, arg2, arg3]) {
+	for (const arg of args) {
 		if (typeof arg === 'string') {
 			// strings are a valid child element
 			children.push(arg);
@@ -207,8 +207,8 @@ export function onContext (configurator, ...reuseKeys) {
 
 // as a convenience provide built in element spec generators for common elements
 export function elementFactory (type) {
-	return function (arg1, arg2, arg3) {
-		return element(type, arg1, arg2, arg3);
+	return function (...args) {
+		return element(type, ...args);
 	}
 }
 
