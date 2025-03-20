@@ -59,7 +59,7 @@ Snippet:
 				itemCount(model.items.length),
 				
 				// use the compose function to request a managed render of a list of objects with a component
-				h.ol({ _id: 'list' }, h.compose(model.items, (item) => displayItem(model, item))),
+				h.ol({ context_id: 'list' }, h.compose(model.items, (item) => displayItem(model, item))),
 			]),
 			
 			h.div({ _class: 'add_item_area' }, [
@@ -88,7 +88,7 @@ Open the example folder in your browser
 
 During instantiation or update of DOM elements, recognised property names are given special treatment when applied to the element.
 
- * \_id, this property sets a reference to the element on the context object, eg. \_id = "textbox" => sets a reference to this element at context.textbox
+ * context_id, this property sets a reference to the element on the context object, eg. context_id = "textbox" => sets a reference to this element at context.textbox
  * class, this property when given a name, or an array of names, will update the classList of the element to match
  * style, when an object value is applied to this property, the values of that object will be merged into the element style object, rather than replacing it
 
@@ -141,6 +141,8 @@ Watchers are held by weak reference only, and disposed objects are ignored.
  * onNextFrame (action, owner)
  * onEveryFrame (action, owner)
  * cancel (owner)
+ * await wait(seconds or condition)
+ * schedule ((fiber) => {})
  
 Timer events are held by weak reference only, and disposed objects are ignored.
 
@@ -151,7 +153,7 @@ Timer events are held by weak reference only, and disposed objects are ignored.
 
 ## License
 
-MIT License, Copyright (c) 2024 Samuel Baird
+MIT License, Copyright (c) 2025 Samuel Baird
 
 ## Status
 
@@ -178,15 +180,17 @@ Done
  * More documentation, overview and how it hangs together
  * Experiment, break code into multiple modules/areas of concern, making tweens optional
  * Add a tween/transform example
+ * Allow watchers for animation frames (ie. that can trigger pre or post, without causing animation frames to be requested) onAnyFrame
+ * Maybe add an optional "phase" value to signal watchers
+ * PIXI integration
 
 In progress
 
- * Maybe add an optional "phase" value to signal watchers
- * Allow watchers for animation frames (ie. that can trigger pre or post, without causing animation frames to be requested)
+ * PIXI touch handler
  
 To do
 
  * Consider a scoped, composable way to define CSS classes or defaults alongside the HTML elements (without needing to supply naming)
- * Maybe add JSDoc markup throughout
- * Maybe PIXI integration?
+ * Add JSDoc markup throughout
  * More efficient handling of long lists or large components (multi key dictionary instead of array for quicker look up in RenderPhase.find)
+

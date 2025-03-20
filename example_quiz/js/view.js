@@ -89,7 +89,7 @@ function questionNumber (quiz, question) {
 
 function timerView (timer) {
 	return h.div({ class: 'timer-holder' }, [
-		h.element('progress', { _id: 'progress', max: 100, value: 100 }, h.onFrame((context, element) => {
+		h.element('progress', { context_id: 'progress', max: 100, value: 100 }, h.onFrame((context, element) => {
 			context.progress.value = timer.percentRemaining();
 		})),
 	]);
