@@ -134,6 +134,12 @@ export function pixi_view (...args) {
 					context.set(properties.context_id, view);
 				}
 				
+				if (properties.prepare) {
+					view.prepare = () => {
+						properties.prepare(view);
+					}
+				}
+				
 				// apply other properties				
 				view.position.set(properties.x ?? 0, properties.y ?? 0);
 				view.scale.set(properties.scaleX ?? properties.scale ?? 1, properties.scaleY ?? properties.scale ?? 1);
@@ -144,8 +150,17 @@ export function pixi_view (...args) {
 				if (createSpec) {
 					view.create(createSpec);
 				}
+				if (properties.begin) {
+					properties.begin(view);
+				}
 				view.begin();
 			});
+			
+			contextListener.onBroadcast = (...args) => {
+				if (view.onBroadcast) {
+					view.onBroadcast(...args)
+				}
+			}
 		};
 		
 		contextListener.onRemove = (context, element) => {
@@ -260,7 +275,6 @@ export class PixiCanvas {
 		this.screen = new PixiView();
 		this.pixiApp.stage.addChild(this.screen);
 
-		// set scaling and sizing of the canvas element and logical sizing
 		// set up touch listeners
 
 		// assume if the window resizes we need to re-render
@@ -284,7 +298,7 @@ export class PixiCanvas {
 	phaseRenderFrame () {
 		this.pixiApp.render();
 
-		// update animations
+		// update animations and dispatch callbacks
 		let callbacks = [];
 		this.walkViews(this.screen, 'updateAnimation', core.frameDeltaSeconds, (callback) => {
 			callbacks.push(callback);
@@ -445,6 +459,10 @@ export class PixiView extends PIXI.Container {
 	
 	schedule (asyncFiberFunction) {
 		return core.schedule(asyncFiberFunction, this);
+	}
+	
+	broadcast (event, data) {
+		return this.context.broadcast(event, data);
 	}
 
 	get linearScale () {

@@ -141,6 +141,8 @@ Watchers are held by weak reference only, and disposed objects are ignored.
  * onNextFrame (action, owner)
  * onEveryFrame (action, owner)
  * cancel (owner)
+ * await wait(seconds or condition)
+ * schedule ((fiber) => {})
  
 Timer events are held by weak reference only, and disposed objects are ignored.
 
@@ -151,7 +153,7 @@ Timer events are held by weak reference only, and disposed objects are ignored.
 
 ## License
 
-MIT License, Copyright (c) 2024 Samuel Baird
+MIT License, Copyright (c) 2025 Samuel Baird
 
 ## Status
 
@@ -179,15 +181,16 @@ Done
  * Experiment, break code into multiple modules/areas of concern, making tweens optional
  * Add a tween/transform example
  * Allow watchers for animation frames (ie. that can trigger pre or post, without causing animation frames to be requested) onAnyFrame
+ * Maybe add an optional "phase" value to signal watchers
+ * PIXI integration
 
 In progress
 
- * Maybe add an optional "phase" value to signal watchers
+ * PIXI touch handler
  
 To do
 
  * Consider a scoped, composable way to define CSS classes or defaults alongside the HTML elements (without needing to supply naming)
  * Add JSDoc markup throughout
- * PIXI integration
  * More efficient handling of long lists or large components (multi key dictionary instead of array for quicker look up in RenderPhase.find)
 
