@@ -98,15 +98,15 @@ export function pixi_view (...args) {
 			}
 		} else {
 			reuseKeys.push(arg);
-		}			
+		}
 	}
-	
+
 	return html.onContext((contextListener) => {
 		const pixi_canvas = contextListener.context.get('pixi_canvas');
 		if (!pixi_canvas) {
 			throw new Error('There must be a pixi canvas within the context tree to create a node.');
 		}
-		
+
 		// set the view in the context to be the parent
 		let view = null;
 		contextListener.onAttach = (context, element) => {
@@ -120,7 +120,7 @@ export function pixi_view (...args) {
 				if (parent == null) {
 					parent = pixi_canvas.screen;
 				}
-				
+
 				if (constructor == null) {
 					view = new PixiView();
 				} else {
@@ -128,25 +128,25 @@ export function pixi_view (...args) {
 				}
 				view.attach(pixi_canvas, context);
 				parent.addChild(view);
-				
+
 				// if an ID is given set a reference in the context
 				if (properties.context_id) {
 					context.set(properties.context_id, view);
 				}
-				
+
 				if (properties.prepare) {
 					view.prepare = () => {
 						properties.prepare(view);
 					}
 				}
-				
-				// apply other properties				
+
+				// apply other properties
 				view.position.set(properties.x ?? 0, properties.y ?? 0);
 				view.scale.set(properties.scaleX ?? properties.scale ?? 1, properties.scaleY ?? properties.scale ?? 1);
 				view.alpha = properties.alpha ?? 1;
 				view.rotation = properties.rotation ?? 0;
 				view.visible = (properties.visible !== undefined ? properties.visible : true);
-				
+
 				if (createSpec) {
 					view.create(createSpec);
 				}
@@ -155,14 +155,14 @@ export function pixi_view (...args) {
 				}
 				view.begin();
 			});
-			
+
 			contextListener.onBroadcast = (...args) => {
 				if (view.onBroadcast) {
 					view.onBroadcast(...args)
 				}
 			}
 		};
-		
+
 		contextListener.onRemove = (context, element) => {
 			if (view) {
 				core.markObjectAsDisposed(view);
@@ -220,6 +220,8 @@ const PHASE_PREPARE_FRAME = -9;
 const PHASE_LATE_PREPARE = -8;
 const PHASE_RENDER_FRAME = 10;
 
+const touchEvents = ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'contextmenu'];
+
 export class PixiCanvas {
 
 	constructor () {
@@ -229,6 +231,7 @@ export class PixiCanvas {
 
 		// top level pixi nodes attached to the canvas
 		this.listeners = [];
+		this.touchEvents = [];
 	}
 
 	setLogicalSize (fitWidth = null, fitHeight = null, maxWidth = null, maxHeight = null, density = null) {
@@ -275,8 +278,6 @@ export class PixiCanvas {
 		this.screen = new PixiView();
 		this.pixiApp.stage.addChild(this.screen);
 
-		// set up touch listeners
-
 		// assume if the window resizes we need to re-render
 		this.listen(window, 'resize', () => {
 			// do nothing, but this makes sure a render is triggered
@@ -292,7 +293,61 @@ export class PixiCanvas {
 		this.walkViews(this.screen, 'prepare');
 
 		// dispatch touch events
+		if (this.touchEvents.length > 0) {
+			this.touchEvents = [];
+		}
+	}
 
+	enableTouchEvents(domElement) {
+		for (const event of touchEvents) {
+			this.listen(domElement, event, (e) => { this.handleTouchEvent(e); });
+		}
+	}
+
+	disableTouchEvents(domElement) {
+		for (const event of touchEvents) {
+			this.unlisten(domElement, event);
+		}
+	}
+
+	handleTouchEvent (e) {
+		if (!this.canvas) {
+			return;
+		}
+		
+		e.preventDefault();
+
+		const bounds = this.canvas.getBoundingClientRect();
+		const x = e.pageX - bounds.left;
+		const y = e.pageY - bounds.top;
+		const touch = {
+			type: e.type,
+			x: e.x,
+			y: e.y,
+			bounds: bounds,
+			id: e.pointerId,
+			time: Date.now(),
+		};
+
+		// convert contextmenu event to a touch cancel by default
+		if (touch.type == 'contextmenu') {
+			touch.type = 'pointercancel';
+			touch.id = -1;	// all touches
+		}
+		
+		// remove any duplicate move events for the same pointer id
+		let i = 0; 
+		while (i < this.touchEvents.length) {
+			if (touch.type == 'pointermove' && this.touchEvents[i].type == 'pointermove' && this.touchEvents[i].id == touch.id) {
+				this.touchEvents.splice(i, 1);
+			} else {
+				i++;
+			}
+		}
+
+		// touch events will be dispatched on the next frame
+		this.touchEvents.push(touch);
+		core.requireNextFrame();
 	}
 
 	phaseRenderFrame () {
@@ -383,12 +438,26 @@ export class PixiCanvas {
 	}
 
 	listen (target, event, action) {
+		this.unlisten(target, event);
 		this.listeners.push({
 			target: target,
 			event: event,
 			action: action,
 		});
 		target.addEventListener(event, action);
+	}
+
+	unlisten (target, event) {
+		let i = 0;
+		while (i < this.listeners.length) {
+			const listener = this.listeners[i];
+			if (listener.target == target && listener.event == event) {
+				target.removeEventListener(event, listener.action);
+				this.listeners.splice(i, 1);
+			} else {
+				i++;
+			}
+		}
 	}
 
 	walkViews (view, method, ...args) {
@@ -444,7 +513,7 @@ export class PixiView extends PIXI.Container {
 	delay (seconds, action) {
 		return core.delay(seconds, action, this);
 	}
-	
+
 	tween(target, properties, timing) {
 		return core.tween(target, properties, timing, this);
 	}
@@ -456,11 +525,11 @@ export class PixiView extends PIXI.Container {
 	wait (timeOrCondition, conditionCheckPeriod = 0) {
 		return core.wait(timeOrCondition, this, conditionCheckPeriod);
 	}
-	
+
 	schedule (asyncFiberFunction) {
 		return core.schedule(asyncFiberFunction, this);
 	}
-	
+
 	broadcast (event, data) {
 		return this.context.broadcast(event, data);
 	}
@@ -503,7 +572,7 @@ export class PixiView extends PIXI.Container {
 		if (pixiObj == this) {
 			return;
 		}
-		
+
 		// add to scene tree
 		this.addChild(pixiObj);
 
@@ -515,7 +584,7 @@ export class PixiView extends PIXI.Container {
 		if (spec.context_id) {
 			this.context.set(spec.context_id, pixiObj);
 		}
-		
+
 		// allow clean up
 		this.createdElements.push({
 			id: spec.id,
@@ -637,7 +706,7 @@ export class PixiView extends PIXI.Container {
 
 		} else if (spec.text !== undefined) {
 			return this.addText(spec);
-			
+
 		} else {
 			console.assert('unrecognised pixiview spec');
 		}

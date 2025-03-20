@@ -49,11 +49,17 @@ function appView (app) {
 				h.element('canvas', hp.pixi_canvas((c) => {
 					// set logical sizing of the canvas when its created
 					c.setLogicalSize(240, 480, 540);
+					// enable touch events captured from this dom element
+					c.enableTouchEvents(window);
 				})),
 			]),
 		]),
 		// a layer for dom elements
 		h.div({ class: 'layer' }, [
+			// use the context to attach touch events to a specific created element
+			// h.onAttach((context, element) => {
+			// 	context.get('pixi_canvas').enableTouchEvents(element);
+			// }),
 			h.compose(app, app.currentView),
 		]),
 	];
@@ -74,14 +80,22 @@ function characterView(model) {
 	return [
 		hp.pixi_view(() => { return new scene.CharacterScene(model.character); }, model.character),
 		h.div({ class: 'character-ui' }, [
-			h.div(),
-			h.div({ class: 'slug' }, model.character.name),
-			h.div({ class: 'slug' }, model.character.role.name),
+			h.div(), //{ style: { pointerEvents: 'auto' } }),
+			h.div({ class: 'slug' }, model.character.name, noClickThrough),
+			h.div({ class: 'slug' }, model.character.role.name, noClickThrough),
 			h.div([
 				h.button('Re-roll', h.listen('click', () => {
 					model.actionCreateNewCharacter();
 				})),
+				noClickThrough,
 			]),
 		]),			
 	];
+}
+
+// trap and stop propagation of click events on this element
+function noClickThrough () {
+	return h.listen('pointerdown', (context, element, e) => {
+		e.stopPropagation();
+	});
 }
