@@ -22,7 +22,13 @@ export class CharacterScene extends hp.PixiView {
 		// add the character and set the animation
 		this.create([
 			{ x: 30, y: 340, clip: this.character.idleAnimation(), scale: 4, id: 'character_clip', loop: true },
-		])
+		]);
+		
+		// add touch interaction to the character
+		const touch = this.addTouchArea(this.character_clip);
+		touch.onTouchBegin = (touch) => {
+			this.triggerRandomAnimation();
+		};
 		
 		// set up an async coroutine fiber to play animations
 		this.schedule((fiber) => { this.showRandomAnimations(fiber); });
@@ -39,7 +45,7 @@ export class CharacterScene extends hp.PixiView {
 	async showRandomAnimations (fiber) {
 		while (true) {
 			// random delay
-			await fiber.wait(1 + Math.random() * 4);
+			await fiber.wait(3 + Math.random() * 4);
 			// then an animation
 			this.triggerRandomAnimation();
 		}

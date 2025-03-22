@@ -35,6 +35,13 @@
 //   PixiClip
 //   TouchArea
 
+// TODO:
+// pixi_view never has to dispose...
+// as in pixiclip is animated through walking the tree
+// would be nice to have a tree order list of pixi clip or touch area that
+// is maintained without walking the full tree...
+
+
 import * as core from './hair.core.js';
 import * as html from './hair.html.js';
 
@@ -166,7 +173,7 @@ export function pixi_view (...args) {
 		contextListener.onRemove = (context, element) => {
 			if (view) {
 				core.markObjectAsDisposed(view);
-				view.parent.removeChild(view);
+				view.removeFromParent();
 				view = null;
 			}
 		};
@@ -294,7 +301,11 @@ export class PixiCanvas {
 
 		// dispatch touch events
 		if (this.touchEvents.length > 0) {
+			const events = this.touchEvents;
 			this.touchEvents = [];
+			for (const event of events) {
+				this.walkViews(this.screen, 'handleTouchEvent', event);
+			}
 		}
 	}
 
@@ -314,17 +325,14 @@ export class PixiCanvas {
 		if (!this.canvas) {
 			return;
 		}
-		
-		e.preventDefault();
 
+		e.preventDefault();
 		const bounds = this.canvas.getBoundingClientRect();
 		const x = e.pageX - bounds.left;
 		const y = e.pageY - bounds.top;
 		const touch = {
 			type: e.type,
-			x: e.x,
-			y: e.y,
-			bounds: bounds,
+			position: { x: x * this.density * this.width / bounds.width, y: y * this.density * this.height / bounds.height },
 			id: e.pointerId,
 			time: Date.now(),
 		};
@@ -334,9 +342,9 @@ export class PixiCanvas {
 			touch.type = 'pointercancel';
 			touch.id = -1;	// all touches
 		}
-		
+
 		// remove any duplicate move events for the same pointer id
-		let i = 0; 
+		let i = 0;
 		while (i < this.touchEvents.length) {
 			if (touch.type == 'pointermove' && this.touchEvents[i].type == 'pointermove' && this.touchEvents[i].id == touch.id) {
 				this.touchEvents.splice(i, 1);
@@ -460,11 +468,14 @@ export class PixiCanvas {
 		}
 	}
 
+	// Note: walk views is only propogated through the tree of pixi views (not other containers)
+	// if you mix over PIXI containers their contents will be invisible to walkViews, which could be
+	// useful for some efficiency (eg. large numbers of particles that should not be walked)
 	walkViews (view, method, ...args) {
 		if (view[method]) {
 			view[method](...args);
 		}
-		if (view.children) {
+		if ((view instanceof PixiView) && view.children) {
 			for (const child of view.children) {
 				this.walkViews(child, method, ...args);
 			}
@@ -712,8 +723,13 @@ export class PixiView extends PIXI.Container {
 		}
 	}
 
-	addTouchArea (target, boundsOrPadding) {
-		// convert a canvas co-ord to target space
+	addTouchArea (target = null, boundsOrPadding = 0) {
+		if (!this.touchAreas) {
+			this.touchAreas = [];
+		}
+
+		// convert coordinates to the target coord space
+		target = target ?? this;
 		const pointConversion = (point) => {
 			return target.toLocal(point);
 		};
@@ -726,7 +742,6 @@ export class PixiView extends PIXI.Container {
 			};
 
 		} else {
-			boundsOrPadding = boundsOrPadding ?? 0;
 			areaTest = (point) => {
 				const rect = target.getLocalBounds();
 				rect.pad(boundsOrPadding);
@@ -734,12 +749,29 @@ export class PixiView extends PIXI.Container {
 			};
 		}
 
-		return this.node.addDisposable(new ui.TouchArea(pointConversion, areaTest, this.node.context.get('event_dispatch')));
+		const touchArea = new TouchArea(this, target, pointConversion, areaTest);
+		this.touchAreas.push(touchArea);
+		return touchArea;
 	}
 
-	dispose () {
-		this.removeFromParent();
+	removeTouchArea (touchArea) {
+		const index = this.touchAreas.indexOf(touchArea);
+		if (index >= 0) {
+			this.touchAreas[index].disposed = true;
+			this.touchAreas.splice(index, 1);
+		}
 	}
+
+	handleTouchEvent (event) {
+		if (!this.touchAreas) {
+			return;
+		}
+
+		for (const touchArea of this.touchAreas.concat()) {
+			touchArea.handleTouchEvent(event);
+		}
+	}
+
 }
 
 // PixiClip
@@ -867,5 +899,91 @@ export class PixiClip extends PIXI.Container {
 }
 
 class TouchArea {
+	
+	// set these callbacks as required
+	// touchArea.onTouchBegin = null;
+	// touchArea.onTouchMove = null;
+	// touchArea.onTouchEnd = null;
+	// touchArea.onTouchCancel = null;
+
+	constructor (pixiView, target, pointConversion, areaTest) {
+		this.pixiView = pixiView;
+		this.target = target;
+		this.pointConversion = pointConversion;
+		this.areaTest = areaTest;
+
+		this._isEnabled = true;
+		this.disposed = false;
+
+		// initialise values
+		this.cancelTouch(false);
+	}
+
+	cancelTouch (dispatchCancel = true) {
+		if (this.isTouched && dispatchCancel) {
+			this.onTouchCancel?.(this);
+		}
+
+		this.id = null;
+		this.isTouchOver = false;
+		this.time = null;
+		this.position = null;
+		this.startTime = null;
+		this.startPosition = null;
+		this.dragDistance = null;
+		this.moveDistance = null;
+	}
+
+	get isTouched () {
+		return this.id != null;
+	}
+
+	get enabled () {
+		return this.listenBegin.enabled;
+	}
+
+	set enabled (value) {
+		if (value && !this._isEnabled) {
+			this._isEnabled = true;
+		} else if (!value && this._isEnabled) {
+			this._isEnabled = false;
+			this.cancelTouch();
+		}
+	}
+
+	handleTouchEvent(e) {
+		if (this.disposed) {
+			return;
+		}
+
+		if (e.type == 'pointerdown' && this.id == null) {
+			// TODO: check the target is visible...
+			const position = this.pointConversion(e.position);
+			if (this.areaTest(position)) {
+				this.id = e.id;
+				this.position = this.startPosition = position;
+				this.time = this.startTime = e.time;
+				this.onTouchBegin?.(this);
+			}
+		} else if (e.type != 'pointerdown' && (this.id == e.id || e.id == -1)) {
+			const previousPosition = this.position;
+			const position = this.pointConversion(e.position);
+			this.position = position;
+			this.isTouchOver = this.areaTest(position);
+			this.dragDistance = { x : position.x - this.startPosition.x, y : position.y - this.startPosition.y };
+			this.moveDistance = { x : position.x - previousPosition.x, y : position.y - previousPosition.y };
+
+			if (e.type == 'pointermove') {
+				this.onTouchMove?.(this);
+			} else if (e.type == 'pointerup') {
+				this.onTouchEnd?.(this);
+				this.cancelTouch(false);
+			} else if (e.type == 'pointercancel') {
+				this.cancelTouch(true);
+			}
+
+		}
+
+	}
 
 }
