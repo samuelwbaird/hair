@@ -36,13 +36,6 @@
 //   TouchArea
 
 // TODO:
-// replace walkViews?  is there a better way to tree walk, in tree order
-// selective things (like animation update or touch events), with some kind of attach/detach
-// eg. attach('resize'), attach('prepare'), attach('onTouch')
-// perhaps walkViews once per frame and gather all events in order??, only dispatch in the frame timer
-// the trade off probably relates to number of objects in the tree, vs how many are responding to these
-// events regularly
-//
 // how to position HTML ui around canvas elements:
 //  * match dom bounds to canvas bounds
 //  * match canvas bounds to dom bounds
@@ -305,19 +298,44 @@ export class PixiCanvas {
 	phasePrepareFrame () {
 		// set scaling and sizing of the canvas element and logical sizing
 		const resizeOccured = this.updateSizing();
-		if (resizeOccured) {
-			this.walkViews(this.screen, 'resize');
-		}
 
-		// prepare through the node tree
-		this.walkViews(this.screen, 'prepare');
+		let resizeSet = resizeOccured ? [] : null;
+		let prepareSet = [];
+		let touchSet = this.touchEvents.length > 0 ? [] : null;
+
+		// gather views relevant to hooks, in tree order
+		this.walkViews(this.screen, (view) => {
+			if (resizeOccured && view.resize) {
+				resizeSet.push(view);
+			}
+			if (view.prepare) {
+				prepareSet.push(view);
+			}
+			if (touchSet && view.touchAreas) {
+				touchSet.push(view);
+			}
+		});
+		
+		// dispatch resize hook when needed
+		if (resizeOccured) {
+			for (const view of resizeSet) {
+				view.resize();
+			}
+		}
+		
+		// prepare on all pixi views that have that method
+		for (const view of prepareSet) {
+			view.prepare();
+		}
 
 		// dispatch touch events
 		if (this.touchEvents.length > 0) {
 			const events = this.touchEvents;
 			this.touchEvents = [];
 			for (const event of events) {
-				this.walkViews(this.screen, 'handleTouchEvent', event);
+				for (const view of touchSet) {
+					view.handleTouchEvent(event);
+				}
 			}
 		}
 	}
@@ -386,8 +404,16 @@ export class PixiCanvas {
 
 		// update animations and dispatch callbacks
 		let callbacks = [];
-		this.walkViews(this.screen, 'updateAnimation', core.frameDeltaSeconds, (callback) => {
-			callbacks.push(callback);
+		this.walkViews(this.screen, (view) => {
+			if (view.children) {
+				for (const child of view.children) {
+					if (child instanceof PixiClip) {
+						child.updateAnimation(core.frameDeltaSeconds, (callback) => {
+							callbacks.push(callback);
+						});
+					}
+				}
+			}
 		});
 		for (const callback of callbacks) {
 			callback();
@@ -495,13 +521,11 @@ export class PixiCanvas {
 	// Note: walk views is only propogated through the tree of pixi views (not other containers)
 	// if you mix over PIXI containers their contents will be invisible to walkViews, which could be
 	// useful for some efficiency (eg. large numbers of particles that should not be walked)
-	walkViews (view, method, ...args) {
-		if (view[method]) {
-			view[method](...args);
-		}
+	walkViews (view, withView) {
 		if ((view instanceof PixiView) && view.children) {
 			for (const child of view.children) {
-				this.walkViews(child, method, ...args);
+				withView(child);
+				this.walkViews(child, withView);
 			}
 		}
 	}
@@ -513,6 +537,7 @@ export class PixiCanvas {
 			}
 			this.listeners = null;
 		}
+		h.markAsDisposed(this);
 	}
 }
 
@@ -782,6 +807,9 @@ export class PixiView extends PIXI.Container {
 		if (index >= 0) {
 			this.touchAreas[index].disposed = true;
 			this.touchAreas.splice(index, 1);
+			if (this.touchAreas.length == 0) {
+				this.touchAreas = null;
+			}
 		}
 	}
 
