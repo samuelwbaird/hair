@@ -36,11 +36,17 @@
 //   TouchArea
 
 // TODO:
-// pixi_view never has to dispose...
-// as in pixiclip is animated through walking the tree
-// would be nice to have a tree order list of pixi clip or touch area that
-// is maintained without walking the full tree...
-
+// replace walkViews?  is there a better way to tree walk, in tree order
+// selective things (like animation update or touch events), with some kind of attach/detach
+// eg. attach('resize'), attach('prepare'), attach('onTouch')
+// perhaps walkViews once per frame and gather all events in order??, only dispatch in the frame timer
+// the trade off probably relates to number of objects in the tree, vs how many are responding to these
+// events regularly
+//
+// how to position HTML ui around canvas elements:
+//  * match dom bounds to canvas bounds
+//  * match canvas bounds to dom bounds
+//  * respond to an event on resize
 
 import * as core from './hair.core.js';
 import * as html from './hair.html.js';
@@ -141,9 +147,13 @@ export function pixi_view (...args) {
 					context.set(properties.context_id, view);
 				}
 
-				if (properties.prepare) {
-					view.prepare = () => {
-						properties.prepare(view);
+				// attach other methods
+				const hooks = ['resize', 'prepare'];
+				for (const hook of hooks) {
+					if (properties[hook]) {
+						view[hook] = () => {
+							properties[hook](view);
+						}
 					}
 				}
 
@@ -294,7 +304,10 @@ export class PixiCanvas {
 
 	phasePrepareFrame () {
 		// set scaling and sizing of the canvas element and logical sizing
-		this.updateSizing();
+		const resizeOccured = this.updateSizing();
+		if (resizeOccured) {
+			this.walkViews(this.screen, 'resize');
+		}
 
 		// prepare through the node tree
 		this.walkViews(this.screen, 'prepare');
@@ -316,9 +329,19 @@ export class PixiCanvas {
 	}
 
 	disableTouchEvents(domElement) {
+		cancelAllTouches();
 		for (const event of touchEvents) {
 			this.unlisten(domElement, event);
 		}
+	}
+
+	cancelAllTouches () {
+		this.walkViews(this.screen, 'handleTouchEvent', {
+			type: 'pointercancel',
+			id: -1,
+			position: { x: 0, y: 0 },
+			time: Date.now(),
+		});
 	}
 
 	handleTouchEvent (e) {
@@ -373,7 +396,7 @@ export class PixiCanvas {
 
 	updateSizing () {
 		if (!this.pixiApp) {
-			return;
+			return false;
 		}
 
 		// find out the dom sizing of the canvase element
@@ -385,7 +408,7 @@ export class PixiCanvas {
 		// check if the screen spec is different
 		const screenSpec = bounds.width + ':' + bounds.height + ' <- ' + targetWidth + ':' + targetHeight + ':' + this.density;
 		if (screenSpec == this.screenSpec) {
-			return;
+			return false;
 		} else {
 			this.screenSpec = screenSpec;
 		}
@@ -443,6 +466,7 @@ export class PixiCanvas {
 		// set values in the context for nodes to understand the screen size
 		this.width = useWidth;
 		this.height = useHeight;
+		return true;
 	}
 
 	listen (target, event, action) {
@@ -664,8 +688,7 @@ export class PixiView extends PIXI.Container {
 	}
 
 	addFill (color, alpha) {
-		const screen = this.node.screen;
-		return this.addRect({ x: 0, y: 0, width: screen.screenWidth, height: screen.screenHeight, color: color, alpha: alpha });
+		return this.addRect({ x: 0, y: 0, width: this.pixi_canvas.width, height: this.pixi_canvas.height, color: color, alpha: alpha });
 	}
 
 	// remove all created items and clear references
@@ -701,8 +724,8 @@ export class PixiView extends PIXI.Container {
 		} else if (spec.fill !== undefined) {
 			spec.x = -this.x;
 			spec.y = -this.y;
-			spec.width = this.node.screen.screenWidth;
-			spec.height = this.node.screen.screenHeight;
+			spec.width = this.pixi_canvas.width;
+			spec.height = this.pixi_canvas.height;
 			spec.color = spec.fill;
 			return this.addRect(spec);
 
@@ -957,21 +980,27 @@ class TouchArea {
 		}
 
 		if (e.type == 'pointerdown' && this.id == null) {
-			// TODO: check the target is visible...
-			const position = this.pointConversion(e.position);
-			if (this.areaTest(position)) {
-				this.id = e.id;
-				this.position = this.startPosition = position;
-				this.time = this.startTime = e.time;
-				this.onTouchBegin?.(this);
+			if (this.isVisible(this.target)) {
+				const position = this.pointConversion(e.position);
+				if (this.areaTest(position)) {
+					this.id = e.id;
+					this.position = this.startPosition = position;
+					this.time = this.startTime = e.time;
+					this.onTouchBegin?.(this);
+				}
 			}
+			
 		} else if (e.type != 'pointerdown' && (this.id == e.id || e.id == -1)) {
-			const previousPosition = this.position;
-			const position = this.pointConversion(e.position);
-			this.position = position;
-			this.isTouchOver = this.areaTest(position);
-			this.dragDistance = { x : position.x - this.startPosition.x, y : position.y - this.startPosition.y };
-			this.moveDistance = { x : position.x - previousPosition.x, y : position.y - previousPosition.y };
+			
+			if (e.type != 'pointercancel') {
+				const previousPosition = this.position;
+				const position = this.pointConversion(e.position);
+				this.position = position;
+				this.isTouchOver = this.areaTest(position);
+				this.dragDistance = { x : position.x - this.startPosition.x, y : position.y - this.startPosition.y };
+				this.moveDistance = { x : position.x - previousPosition.x, y : position.y - previousPosition.y };
+			}
+			this.time = e.time;
 
 			if (e.type == 'pointermove') {
 				this.onTouchMove?.(this);
@@ -981,9 +1010,20 @@ class TouchArea {
 			} else if (e.type == 'pointercancel') {
 				this.cancelTouch(true);
 			}
-
 		}
-
+	}
+	
+	isVisible (target) {
+		if (target.visible && target.alpha > 0) {
+			if (target.parent) {
+				return this.isVisible(target.parent);
+			} else {
+				return true;
+			}
+			
+		} else {
+			return false;
+		}
 	}
 
 }

@@ -17,7 +17,7 @@ export class CharacterScene extends hp.PixiView {
 			{ x: 0, y: 320, scaleX: 3.2, scaleY: 1, sprite: 'green_gradient', id: 'gradient' },
 			{ x: 0, y: 0, sprite: 'background_ruins' },
 		]);
-		this.prepare();
+		this.resize();
 		
 		// add the character and set the animation
 		this.create([
@@ -34,8 +34,7 @@ export class CharacterScene extends hp.PixiView {
 		this.schedule((fiber) => { this.showRandomAnimations(fiber); });
 	}
 	
-	// runs ahead of any frame render
-	prepare () {
+	resize () {
 		// align this view with the center of the screen
 		this.x = this.pixi_canvas.width * 0.5;
 		this.gradient.scale.x = (this.pixi_canvas.width / 50);
