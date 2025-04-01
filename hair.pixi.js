@@ -43,6 +43,7 @@
 
 import * as core from './hair.core.js';
 import * as html from './hair.html.js';
+import * as tween from './hair.tween.js';
 
 // -- public interface ----------------------------------------------------------------------
 
@@ -281,6 +282,7 @@ export class PixiCanvas {
 		// create pixi application
 		const options = {
 			view: this.canvas,
+			antialias: true,
 		};
 		this.pixiApp = new PIXI.Application(options);
 
@@ -547,7 +549,7 @@ export class PixiCanvas {
 // each pixiview is linked to a node which provides interaction, timers and lifecycle
 export class PixiView extends PIXI.Container {
 
-	constructor () {
+	constructor (initProps = null) {
 		super();
 
 		// created elements
@@ -555,6 +557,10 @@ export class PixiView extends PIXI.Container {
 
 		// we're not using the pixi event system
 		this.eventMode = 'none';
+		
+		if (initProps) {
+			Object.assign(this, initProps);
+		}
 	}
 
 	attach (pixi_canvas, context) {
@@ -575,11 +581,11 @@ export class PixiView extends PIXI.Container {
 	}
 
 	tween(target, properties, timing) {
-		return core.tween(target, properties, timing, this);
+		return tween.tween(target, properties, timing, this);
 	}
 
 	async asyncTween(target, properties, timing) {
-		return core.asyncTween(target, properties, timing, this);
+		return tween.asyncTween(target, properties, timing, this);
 	}
 
 	wait (timeOrCondition, conditionCheckPeriod = 0) {
@@ -656,7 +662,11 @@ export class PixiView extends PIXI.Container {
 
 	// individual creator/adder functions
 	addSubview (spec) {
-		return this.addToSpec(new PixiView(), spec);
+		const view = this.addToSpec(new PixiView(), spec);
+		if (spec.children) {
+			view.create(spec.children);
+		}
+		return view;
 	}
 
 	addRect (spec) {
@@ -711,9 +721,11 @@ export class PixiView extends PIXI.Container {
 		}
 		return text;
 	}
-
-	addFill (color, alpha) {
-		return this.addRect({ x: 0, y: 0, width: this.pixi_canvas.width, height: this.pixi_canvas.height, color: color, alpha: alpha });
+	
+	addGraphics (spec) {
+		const graphics = this.addToSpec(new PIXI.Graphics(), spec);
+		spec.graphics(graphics);
+		return graphics;
 	}
 
 	// remove all created items and clear references
@@ -743,7 +755,6 @@ export class PixiView extends PIXI.Container {
 		if (spec.children !== undefined) {
 			// if this spec has children then all its content must be in a new subview
 			const view = this.addSubview(spec);
-			view.create(spec.children);
 			return view;
 
 		} else if (spec.fill !== undefined) {
@@ -765,6 +776,9 @@ export class PixiView extends PIXI.Container {
 
 		} else if (spec.text !== undefined) {
 			return this.addText(spec);
+			
+		} else if (spec.graphics !== undefined) {
+			return this.addGraphics(spec);
 
 		} else {
 			console.assert('unrecognised pixiview spec');
