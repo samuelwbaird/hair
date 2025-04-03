@@ -836,6 +836,13 @@ export class PixiView extends PIXI.Container {
 			touchArea.handleTouchEvent(event);
 		}
 	}
+	
+	reparent (view) {
+		// move this view to be under this parent, keeping the same relative position
+		const ref = view.parent.toGlobal(view.position);
+		this.addChild(view);
+		view.position = this.toLocal(ref);
+	}
 
 }
 
