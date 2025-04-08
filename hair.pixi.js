@@ -567,7 +567,7 @@ export class PixiView extends PIXI.Container {
 		this.pixi_canvas = pixi_canvas;
 		this.context = context;
 	}
-
+	
 	begin () {
 		// override this method to set up an action on first update after attaching
 	}
@@ -662,10 +662,19 @@ export class PixiView extends PIXI.Container {
 
 	// individual creator/adder functions
 	addSubview (spec) {
-		const view = this.addToSpec(new PixiView(), spec);
-		if (spec.children) {
-			view.create(spec.children);
+		let view = null;
+		if (spec instanceof PixiView) {
+			view = spec;
+			this.addChild(view);
+		} else {
+			view = this.addToSpec(new PixiView(), spec);
+			if (spec.children) {
+				view.create(spec.children);
+			}
 		}
+		
+		view.attach(this.pixi_canvas, this.context);
+		view.begin();
 		return view;
 	}
 
@@ -805,7 +814,7 @@ export class PixiView extends PIXI.Container {
 
 		} else {
 			areaTest = (point) => {
-				const rect = target.getLocalBounds();
+				const rect = target.getLocalBounds().clone();
 				rect.pad(boundsOrPadding);
 				return rect.contains(point.x, point.y);
 			};
