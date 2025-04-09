@@ -1020,7 +1020,7 @@ class TouchArea {
 	}
 
 	get enabled () {
-		return this.listenBegin.enabled;
+		return this._isEnabled;
 	}
 
 	set enabled (value) {
@@ -1037,7 +1037,7 @@ class TouchArea {
 			return;
 		}
 
-		if (e.type == 'pointerdown' && this.id == null) {
+		if (e.type == 'pointerdown' && this.id == null && this._isEnabled) {
 			if (this.isVisible(this.target)) {
 				const position = this.pointConversion(e.position);
 				if (this.areaTest(position)) {
