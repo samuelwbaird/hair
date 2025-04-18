@@ -224,7 +224,16 @@ class Transform {
 	set scale (value) { this.#scale = value; this.#updateTransform(); }
 	set rotation (value) { this.#rotation = value; this.#updateTransform(); }
 	set opacity (value) { this.#opacity = value; this.#updateTransform(); }
+	
+	get width () { const bounds = this.element.getBoundingClientRect(); return bounds.width; }
+	get height () { const bounds = this.element.getBoundingClientRect(); return bounds.height; }
+	
+	get centerX () { return this.#x + (this.width * 0.5); }	
+	get centerY () { return this.#y + (this.height * 0.5); }	
 
+	set centerX (value) { this.x = (value - (this.width * 0.5)); }
+	set centerY (value) { this.y = (value - (this.height * 0.5)); }
+	
 	#updateTransform () {
 		const radians = (this.#rotation * (Math.PI / 180));
 		const scale = this.#scale;
