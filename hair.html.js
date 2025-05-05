@@ -606,7 +606,7 @@ class RenderPhase {
 		search: while (i < this.priorAttachments.length) {
 			const attachment = this.priorAttachments[i];
 			if (attachment instanceof attachmentType) {
-				for (let j = 0; j < keys.length; j++) {
+				for (let j = 0; j < Math.max(attachment.keys.length, keys.length); j++) {
 					if (keys[j] != attachment.keys[j]) {
 						i++;
 						continue search;
