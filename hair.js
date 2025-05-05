@@ -21,6 +21,7 @@ export const onAnyFrame = core.onAnyFrame;
 export const cancel = core.cancel;
 
 export const wait = core.wait;
+export const forever = core.forever;
 export const schedule = core.schedule;
 
 export const markObjectAsDisposed = core.markObjectAsDisposed;

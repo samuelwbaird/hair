@@ -287,6 +287,13 @@ export function wait (timeOrCondition, owner, conditionCheckPeriod = 0) {
 	return fiber.wait(timeOrCondition, conditionCheckPeriod);
 }
 
+// use this in async fnuction, eg. await core.forever();
+export function forever () {
+	return new Promise((resume) => {
+		// you can (not) resume
+	});
+}
+
 export function schedule (asyncFiberFunction, owner) {
 	const fiber = new Fiber(owner);
 	asyncFiberFunction(fiber);
