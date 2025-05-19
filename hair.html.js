@@ -325,20 +325,23 @@ class RenderContext {
 		return this.update(state);
 	}
 
-	update (state, parentOrder = null) {
+	update (state, parentRenderInsertCursor = null) {
 		if (!state) {
 			this.clear();
 			return;
 		}
 
 		// track the intended order of elements as they are created or reused
-		if (!parentOrder) {
-			parentOrder = new Map();
-			// we need to start this component off in its current position of its first element
-			for (const attachment of this.attachments) {
-				if ((attachment instanceof ElementAttachment) && (attachment.element.parentElement == this.parentDOMElement)) {
-					parentOrder.set(this.parentDOMElement, attachment.element);
-					break;
+		if (!parentRenderInsertCursor) {
+			parentRenderInsertCursor = new Map();
+		}
+
+		// when re-rendering we need to track where rendering of this componen
+		// may already occur in the node tree
+		for (const attachment of this.attachments) {
+			if ((attachment instanceof ElementAttachment)) {
+				if (!parentRenderInsertCursor.has(attachment.element.parentElement)) {
+					parentRenderInsertCursor.set(attachment.element.parentElement, attachment.element);
 				}
 			}
 		}
@@ -348,7 +351,7 @@ class RenderContext {
 		this.updateIsRequested = false;
 
 		// begin middle and end of render
-		const renderPhase = new RenderPhase(this, parentOrder);
+		const renderPhase = new RenderPhase(this, parentRenderInsertCursor);
 		this.#apply(this.parentDOMElement, state, this.component, renderPhase);
 		this.commit(renderPhase);
 
@@ -398,7 +401,7 @@ class RenderContext {
 			// special case list handling... map list items and their component to the created element
 			for (const item of state) {
 				const subContext = renderPhase.findOrCreateListItemSubContext(this, parent, component, item);
-				subContext.update(item, renderPhase.parentOrder);
+				subContext.update(item, renderPhase.parentRenderInsertCursor);
 			}
 			return;
 		}
@@ -434,7 +437,7 @@ class RenderContext {
 		} else if (component instanceof ComposeSpecification) {
 			// compose either a list or sub component
 			const subContext = renderPhase.findOrCreateSubContext(this, parent, component.component, component.reuseKey);
-			subContext.update(component.state, renderPhase.parentOrder);
+			subContext.update(component.state, renderPhase.parentRenderInsertCursor);
 
 		} else if (component instanceof ListenSpecification) {
 			renderPhase.findOrCreateDOMListener(this, parent, component.event, component.listener);
@@ -483,9 +486,9 @@ class RenderContext {
 
 class RenderPhase {
 
-	constructor (context, parentOrder) {
+	constructor (context, parentRenderInsertCursor) {
 		this.context = context;
-		this.parentOrder = parentOrder;
+		this.parentRenderInsertCursor = parentRenderInsertCursor;
 
 		// take a copy of all existing sub elements and sub contexts
 		// and attempt to re-use and update them during the render pass
@@ -525,27 +528,24 @@ class RenderPhase {
 	}
 
 	findOrCreateElement (type, parent, state, properties) {
-		if (!this.parentOrder.has(parent)) {
-			this.parentOrder.set(parent, parent.firstChild);
-		}
-		const insertBefore = this.parentOrder.get(parent);
+		const insertBefore = this.parentRenderInsertCursor.get(parent);
 
 		const keys = [ type, parent, state, properties?.id, properties?.context_id ];
 		const existing = this.find(ElementAttachment, keys);
 		if (existing) {
 			if (existing.element == insertBefore || existing.element.nextSibling == insertBefore) {
-				this.parentOrder.set(parent, existing.element.nextSibling);
+				// the element is already in the correct position
 			} else {
 				if (MONITOR_DOM_UPDATES) {
 					MOVE_COUNT++;
 				}
-				existing.element.remove();
 				if (insertBefore == null || insertBefore.parent == parent) {
 					parent.insertBefore(existing.element, insertBefore);
 				} else {
 					parent.appendChild(existing.element);
 				}
 			}
+			this.parentRenderInsertCursor.set(parent, existing.element.nextSibling);
 			return existing.element;
 		}
 
@@ -558,6 +558,7 @@ class RenderPhase {
 		} else {
 			parent.appendChild(element);
 		}
+		this.parentRenderInsertCursor.set(parent, element.nextSibling);
 		this.addAttachment(new ElementAttachment(element), keys);
 		return element;
 	}
