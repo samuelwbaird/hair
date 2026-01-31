@@ -776,7 +776,7 @@ function applyClassList(context, element, key, value) {
 		}
 	}
 
-	// if the length of the current classlist does not match then replace it
+	// then add any class names not currently included
 	for (const className of value) {
 		if (className != null && className != '' && className != false) {
 			if (!element.classList.contains(className)) {
