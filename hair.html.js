@@ -69,7 +69,7 @@ export function createElements (parent, state, component, initialContextValues =
 			}
 		}
 	}
-	
+
 	return elements;
 }
 
@@ -362,7 +362,7 @@ class RenderContext {
 				core.onNextFrame(() => { this.consolidatedUpdateFromSignals(); }, this);
 			}, this);
 		}
-		
+
 		return renderPhase;
 	}
 
@@ -396,7 +396,7 @@ class RenderContext {
 
 	// recursive process to expand the components and apply them to the DOM
 	#apply (parent, state, component, renderPhase) {
-		const stateIsIterable = (state != null) && (typeof state != 'string') && (typeof state[Symbol.iterator] === 'function');				
+		const stateIsIterable = (state != null) && (typeof state != 'string') && (typeof state[Symbol.iterator] === 'function');
 		if (stateIsIterable) {
 			// special case list handling... map list items and their component to the created element
 			for (const item of state) {
@@ -751,7 +751,7 @@ class ContextListenerAttachment extends RenderAttachment {
 const propertyHandlers = {
 	context_id: applyContextIDProperty,
 	class: applyClassList,
-	style: applyMergedProperties,
+	style: applyUpdatedStyles,
 	value: applyValueToInput,
 }
 
@@ -768,7 +768,7 @@ function applyClassList(context, element, key, value) {
 	if (!Array.isArray(value)) {
 		value = [value];
 	}
-	
+
 	// first remove any class names that aren't in the new list
 	for (const className of element.classList) {
 		if (!value.includes(className)) {
@@ -793,11 +793,32 @@ function applyMergedProperties(context, element, key, value) {
 	}
 }
 
+// merge styles into the element.styles object
+// remove any styles previously applied by hair and not replaced
+const previouslyApplied = new WeakMap();
+function applyUpdatedStyles(context, element, key, value) {
+	const mergeInto = element[key];
+	const previous = previouslyApplied.get(element);
+	const values = Object.entries(value);
+	// remove previous and apply new
+	if (previous) {
+		for (const [k, v] of previous) {
+			if (!(k in values)) {
+				mergeInto[k] = null;
+			}
+		}
+	}
+	for (const [k, v] of values) {
+		mergeInto[k] = v;
+	}
+	previouslyApplied.set(element, values);
+}
+
 function applyValueToInput(context, element, key, value) {
 	if (document.activeElement == element && (element instanceof HTMLInputElement) && document.hasFocus()) {
-		// do not overwrite the value of an input that has focus		
+		// do not overwrite the value of an input that has focus
 	} else {
-		element[key] = value;		
+		element[key] = value;
 	}
 }
 
