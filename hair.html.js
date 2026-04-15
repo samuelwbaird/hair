@@ -121,7 +121,7 @@ export function listen (event, listener) {
 }
 
 export function onAttach (listener, ...reuseKeys) {
-	// run once when attached
+	// run once during render commit the first time this component is render
 	return new ContextListenerSpecification('attach', (contextListener) => {
 		contextListener.onAttach = listener;
 	}, ...reuseKeys);
@@ -135,7 +135,7 @@ export function onRemove (listener, ...reuseKeys) {
 }
 
 export function onUpdate (listener, ...reuseKeys) {
-	// run whenever this component is created or updated
+	// run during render commit whenever this component is created or updated
 	return new ContextListenerSpecification('update', (contextListener) => {
 		contextListener.onUpdate = listener;
 	}, ...reuseKeys);
