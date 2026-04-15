@@ -183,6 +183,7 @@ Done
  * Allow watchers for animation frames (ie. that can trigger pre or post, without causing animation frames to be requested) onAnyFrame
  * Maybe add an optional "phase" value to signal watchers
  * PIXI integration
+ * Consider an onPrepare, similar to onAttach but run before the render phase commits with all children
 
 In progress
 
@@ -192,6 +193,5 @@ To do
  * Consider a scoped, composable way to define CSS classes or defaults alongside the HTML elements (without needing to supply naming)
  * Add JSDoc markup throughout
  * More efficient handling of long lists or large components (multi key dictionary instead of array for quicker look up in RenderPhase.find)
- * Consider an onPrepare, similar to onAttach but run before the render phase commits with all children
  * Consider a broadcastUp that broadcasts events to parents instead of children
 
