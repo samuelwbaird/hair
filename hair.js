@@ -34,6 +34,7 @@ export const element = html.element;
 export const compose = html.compose;
 
 export const listen = html.listen;
+export const onPrepare = html.onPrepare;
 export const onAttach = html.onAttach;
 export const onRemove = html.onRemove;
 export const onUpdate = html.onUpdate;

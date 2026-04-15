@@ -120,6 +120,13 @@ export function listen (event, listener) {
 	return new ListenSpecification(event, listener, false);
 }
 
+export function onPrepare (listener, ...reuseKeys) {
+	// run once when attached
+	return new ContextListenerSpecification('prepare', (contextListener) => {
+		listener(contextListener.context, contextListener.element);
+	}, ...reuseKeys);
+}
+
 export function onAttach (listener, ...reuseKeys) {
 	// run once when attached
 	return new ContextListenerSpecification('attach', (contextListener) => {
@@ -713,7 +720,6 @@ class ContextListenerAttachment extends RenderAttachment {
 	// .onUpdate?.(context, element)
 	// .onRemove?.(context, element)
 	// .onBroadcast?.(event, eventData)
-
 
 	addDisposable (disposable) {
 		if (!this.disposables) {
