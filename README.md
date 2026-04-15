@@ -186,11 +186,12 @@ Done
 
 In progress
 
- * PIXI touch handler
  
 To do
 
  * Consider a scoped, composable way to define CSS classes or defaults alongside the HTML elements (without needing to supply naming)
  * Add JSDoc markup throughout
  * More efficient handling of long lists or large components (multi key dictionary instead of array for quicker look up in RenderPhase.find)
+ * Consider an onPrepare, similar to onAttach but run before the render phase commits with all children
+ * Consider a broadcastUp that broadcasts events to parents instead of children
 
