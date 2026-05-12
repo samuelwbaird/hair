@@ -313,9 +313,15 @@ class Fiber {
 				this.delayedAction = onNextFrame(resume, this.owner);
 			} else if (typeof timeOrCondition == 'function') {
 				this.delayedAction = timer(conditionCheckPeriod, () => {
-					if (timeOrCondition()) {
+					if (isObjectDisposed(this)) {
+						return;
+					}
+					const result = timeOrCondition();
+					if (result === false || result === undefined) {
+						// false or undefined will continue to wait, return new Boolean(false) if needed
+					} else {
 						this.delayedAction.cancel();
-						resume();
+						resume(result);
 					}
 				}, this.owner);			
 			} else {
