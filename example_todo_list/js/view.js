@@ -1,7 +1,7 @@
 // reference the hair library to access the provided functions to generate elements
-import { compose, composeEach, listen, elements } from '../../hair.js';
+import { composeEach, listen, elements } from '../../hair.js';
 
-const { h1, div, p, span, ol, li, button, input } = elements;
+const { h1, div, p, span, ol, button, input } = elements;
 
 /** top level view, render the app as a title, list, and "add new" component */
 export default function app (model) {

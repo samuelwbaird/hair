@@ -8,15 +8,17 @@
 // This will be registeted in the render context tree, anywhere in the rest of the tree add
 // a pixi_view, and control it using the timing and tweening and updates from hair
 //
-// import * as h from 'hair.js';
-// import * as hp from 'hair-pixi.js';
+// import { elements } from 'hair.js';
+// import * as hp from 'hair.pixi.js';
+//
+// const { canvas } = elements;
 //
 // function gameView () {
 //   return [
 //
-//    h.element('canvas', { class: 'game-canvas' }, hp.pixi_canvas(canvas) => {
-//      canvas.setLogicalSize(480, 320);
-//    }, ...reuseKeys),
+//    canvas({ class: 'game-canvas' }, hp.pixi_canvas((pixiCanvas) => {
+//      pixiCanvas.setLogicalSize(480, 320);
+//    }, ...reuseKeys)),
 //
 //    // pixi_view (properties, constructor or create spec, ...reuseKeys)
 //    hp.pixi_view([
@@ -538,7 +540,7 @@ export class PixiCanvas {
 			}
 			this.listeners = null;
 		}
-		h.markAsDisposed(this);
+		hair.markObjectAsDisposed(this);
 	}
 }
 

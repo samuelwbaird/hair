@@ -9,7 +9,7 @@
 // 	 render, createElements
 //
 //   Functions to compose component specifications for render
-//     element, compose, composeEach, listen
+//     elements, element, compose, composeEach, listen
 //	   onPrepare, onAttach, onRemove, onUpdate, onContext
 //	   onBroadcast, onDelay, onTimer, onFrame
 //
@@ -242,16 +242,22 @@ export function onContext (configurator, ...reuseKeys) {
 	}, ...reuseKeys);
 }
 
-// as a convenience provide built in element spec generators for common elements
-export function elementFactory (type) {
-	return function (...args) {
-		return element(type, ...args);
-	}
-}
-
+// element spec functions for any tag, created on first use and then reused
+// eg. const { div, p } = elements;  or  elements['my-widget'] for names that are not valid identifiers
+// any name is accepted, so a misspelt tag creates an unknown element rather than an error
+const elementFunctions = new Map();
 export const elements = new Proxy({}, {
 	get (_, type) {
-		return elementFactory(type);
+		// symbols and "then" are not tags, so the proxy isn't mistaken for a promise, iterator, etc.
+		if (typeof type !== 'string' || type === 'then') {
+			return undefined;
+		}
+		let elementFunction = elementFunctions.get(type);
+		if (!elementFunction) {
+			elementFunction = (...args) => element(type, ...args);
+			elementFunctions.set(type, elementFunction);
+		}
+		return elementFunction;
 	}
 });
 

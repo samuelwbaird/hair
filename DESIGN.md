@@ -38,7 +38,7 @@ When a choice comes up, prefer the one that is simple to explain and keeps that 
 
 ## Specs: functions, arrays and elements
 
-Element functions (`h.div`, ...), arrays and plain functions only **build the specification**. A function component has no lifecycle, identity, context or watch of its own. It runs inside whichever compose region includes it, and shares that region's context. Calling a function inline or passing it by reference only changes which state it receives.
+Element functions (`div`, `p`, ... from `elements`), arrays and plain functions only **build the specification**. A function component has no lifecycle, identity, context or watch of its own. It runs inside whichever compose region includes it, and shares that region's context. Calling a function inline or passing it by reference only changes which state it receives.
 
 How values in a spec render:
 
@@ -48,7 +48,7 @@ How values in a spec render:
 
 ## Compose boundaries
 
-`h.compose(state, view)` is the real unit of encapsulation:
+`compose(state, view)` is the real unit of encapsulation:
 
  * It binds a region of the view to one model object.
  * It watches that object, and re-renders the region when the object signals.
@@ -57,7 +57,7 @@ How values in a spec render:
 
 `compose` always passes its state through whole, whatever its type. An array, Map or iterable model given to `compose` is watched and rendered as one object.
 
-Lists are explicit. `h.composeEach(items, view)` creates the same compose boundary once per item: each item is watched, has its own context, and is matched to its region by identity. Only `composeEach` iterates, and only over the collection it was given, so items that are themselves iterable (Map entries, tuples) are passed through whole. What a call does follows from the function called, not from the type of the state.
+Lists are explicit. `composeEach(items, view)` creates the same compose boundary once per item: each item is watched, has its own context, and is matched to its region by identity. Only `composeEach` iterates, and only over the collection it was given, so items that are themselves iterable (Map entries, tuples) are passed through whole. What a call does follows from the function called, not from the type of the state.
 
 ## Re-render semantics
 

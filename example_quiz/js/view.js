@@ -1,5 +1,5 @@
 // reference the hair library to access the provided functions to generate elements
-import { compose, composeEach, onBroadcast, onDelay, onFrame, onContext, listen, elements } from '../../hair.js';
+import { compose, composeEach, onBroadcast, onDelay, onFrame, onContext, listen, delay, elements } from '../../hair.js';
 
 const { h1, h2, div, p, button, progress } = elements;
 
@@ -47,7 +47,7 @@ function questionView (quiz, question) {
 }
 
 function questionInPlay (quiz, question) {
-	let delay = 0;
+	let stagger = 0;
 	return [
 		div({ class: 'answer-holder' }, composeEach(question.answers, (answer) => {
 			return button(answer.text, { class: 'answer', style: { opacity: 0 } }, [
@@ -55,7 +55,7 @@ function questionInPlay (quiz, question) {
 					question.selectAnswer(answer);
 				}),
 				// staggered appearance for each button
-				onDelay((++delay * 0.1), (context, element) => {
+				onDelay((++stagger * 0.1),(context, element) => {
 					element.style.opacity = 1;
 				}),
 			]);
@@ -116,12 +116,12 @@ function resultsOverlay (results) {
 }
 
 // give a delayed appearance functionality to an element
-function delayedAppearance(delay) {
+function delayedAppearance(seconds) {
 	return onContext((contextListener) => {
 		let cancelToken = null;
 		contextListener.onAttach = (context, element) => {
 			element.style.opacity = 0;
-			cancelToken = delay(delay, () => {
+			cancelToken = delay(seconds, () => {
 				element.style.opacity = 1;
 			}, contextListener);
 		}

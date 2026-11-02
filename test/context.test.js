@@ -4,9 +4,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as h from '../hair.js';
 
+const { div, p, button, input } = h.elements;
+
 test('context_id refs are stored as context values', () => {
 	const parent = root();
-	const context = h.render(parent, {}, () => h.div({ context_id: 'update' }));
+	const context = h.render(parent, {}, () => div({ context_id: 'update' }));
 	assert.equal(typeof context.update, 'function');
 	assert.equal(context.get('update'), parent.firstChild);
 });
@@ -15,8 +17,8 @@ test('context_id refs are visible to inner contexts', () => {
 	const parent = root();
 	let found = null;
 	h.render(parent, {}, () => [
-		h.input({ context_id: 'field' }),
-		h.compose({}, () => h.button(h.onAttach((context) => { found = context.get('field'); }))),
+		input({ context_id: 'field' }),
+		h.compose({}, () => button(h.onAttach((context) => { found = context.get('field'); }))),
 	]);
 	assert.equal(found, parent.querySelector('input'));
 });
@@ -25,7 +27,7 @@ test('context_id refs are removed with their element', () => {
 	const parent = root();
 	const state = {};
 	let show = true;
-	const context = h.render(parent, state, () => show ? h.div({ context_id: 'box' }) : null);
+	const context = h.render(parent, state, () => show ? div({ context_id: 'box' }) : null);
 	show = false;
 	context.update(state);
 	assert.equal(context.get('box'), null);
@@ -34,7 +36,7 @@ test('context_id refs are removed with their element', () => {
 test('context.set does not re-render unless asked to', async () => {
 	const parent = root();
 	let renders = 0;
-	const context = h.render(parent, {}, (state, context) => { renders++; return h.p(context.get('tab', 'first')); });
+	const context = h.render(parent, {}, (state, context) => { renders++; return p(context.get('tab', 'first')); });
 	context.set('tab', 'second');
 	await nextFrame();
 	assert.equal(renders, 1);
@@ -47,7 +49,7 @@ test('context.set does not re-render unless asked to', async () => {
 test('signalling a context re-renders its region', async () => {
 	const parent = root();
 	let renders = 0;
-	const context = h.render(parent, {}, () => { renders++; return h.p('x'); });
+	const context = h.render(parent, {}, () => { renders++; return p('x'); });
 	h.signal(context);
 	await nextFrame();
 	assert.equal(renders, 2);
@@ -58,7 +60,7 @@ test('context listeners use the latest listener on reuse', () => {
 	const state = {};
 	let n = 1;
 	const seen = [];
-	const context = h.render(parent, state, () => { const mine = n; return h.div(h.onUpdate(() => seen.push(mine))); });
+	const context = h.render(parent, state, () => { const mine = n; return div(h.onUpdate(() => seen.push(mine))); });
 	n = 2;
 	context.update(state);
 	n = 3;
@@ -71,7 +73,7 @@ test('onDelay runs once, with the latest listener', async () => {
 	const state = {};
 	let label = 'one';
 	const seen = [];
-	const context = h.render(parent, state, () => { const mine = label; return h.div(h.onDelay(0.01, () => seen.push(mine))); });
+	const context = h.render(parent, state, () => { const mine = label; return div(h.onDelay(0.01, () => seen.push(mine))); });
 	label = 'two';
 	context.update(state);
 	await nextFrame();
@@ -82,7 +84,7 @@ test('onDelay runs once, with the latest listener', async () => {
 test('onDelay is cancelled when removed', async () => {
 	const parent = root();
 	let ran = false;
-	const context = h.render(parent, {}, () => h.div(h.onDelay(0.01, () => { ran = true; })));
+	const context = h.render(parent, {}, () => div(h.onDelay(0.01, () => { ran = true; })));
 	context.dispose();
 	await nextFrame();
 	await nextFrame();
@@ -92,7 +94,7 @@ test('onDelay is cancelled when removed', async () => {
 test('disposables added to a context listener are disposed on removal', () => {
 	const parent = root();
 	const disposed = [];
-	const context = h.render(parent, {}, () => h.div(h.onContext((contextListener) => {
+	const context = h.render(parent, {}, () => div(h.onContext((contextListener) => {
 		contextListener.addDisposable(() => disposed.push('function'));
 		contextListener.addDisposable({ dispose: () => disposed.push('object') });
 	})));
@@ -107,7 +109,7 @@ test('a render that throws still watches its state', async () => {
 	let renders = 0;
 	const context = h.render(parent, state, () => {
 		renders++;
-		return [h.p('a'), () => { if (fail) throw new Error('render failed'); return h.p('b'); }];
+		return [p('a'), () => { if (fail) throw new Error('render failed'); return p('b'); }];
 	});
 	fail = true;
 	assert.throws(() => context.update(state), /render failed/);
@@ -122,7 +124,7 @@ test('a render that throws during a signalled update is reported', async () => {
 	const parent = root();
 	const state = {};
 	let fail = false;
-	h.render(parent, state, () => { if (fail) throw new Error('signalled render failed'); return h.p('ok'); });
+	h.render(parent, state, () => { if (fail) throw new Error('signalled render failed'); return p('ok'); });
 	fail = true;
 	reportedErrors.length = 0;
 	h.signal(state);

@@ -4,37 +4,39 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as h from '../hair.js';
 
+const { div, p, span, ul, li } = h.elements;
+
 const items = (...names) => names.map((name) => ({ name }));
 
 test('compose passes an array through whole', () => {
 	const parent = root();
-	h.render(parent, {}, () => h.compose(['a', 'b'], (list) => h.p('count ' + list.length)));
+	h.render(parent, {}, () => h.compose(['a', 'b'], (list) => p('count ' + list.length)));
 	assert.equal(parent.innerHTML, '<p>count 2</p>');
 });
 
 test('render passes an array through whole', () => {
 	const parent = root();
-	h.render(parent, ['a', 'b'], (list) => h.p('count ' + list.length));
+	h.render(parent, ['a', 'b'], (list) => p('count ' + list.length));
 	assert.equal(parent.innerHTML, '<p>count 2</p>');
 });
 
 test('composeEach renders each item, including falsy values', () => {
 	const parent = root();
-	h.render(parent, {}, () => h.ul(h.composeEach([0, 1, '', 2], (n) => h.li(n))));
+	h.render(parent, {}, () => ul(h.composeEach([0, 1, '', 2], (n) => li(n))));
 	assert.equal(parent.innerHTML, '<ul><li>0</li><li>1</li><li></li><li>2</li></ul>');
 });
 
 test('composeEach passes iterable items through whole', () => {
 	const parent = root();
 	const map = new Map([['k1', 'v1'], ['k2', 'v2']]);
-	h.render(parent, {}, () => h.ul(h.composeEach(map, ([key, value]) => h.li(key + '=' + value))));
+	h.render(parent, {}, () => ul(h.composeEach(map, ([key, value]) => li(key + '=' + value))));
 	assert.equal(parent.innerHTML, '<ul><li>k1=v1</li><li>k2=v2</li></ul>');
 });
 
 test('composeEach reuses DOM for the same item objects', () => {
 	const parent = root();
 	const model = { items: items('A', 'B', 'C') };
-	const context = h.render(parent, model, (m) => h.ul(h.composeEach(m.items, (item) => h.li(item.name))));
+	const context = h.render(parent, model, (m) => ul(h.composeEach(m.items, (item) => li(item.name))));
 	const before = [...parent.querySelectorAll('li')];
 	model.items.reverse();
 	context.update(model);
@@ -46,7 +48,7 @@ test('composeEach reuses DOM for the same item objects', () => {
 test('prepending an item moves no existing nodes', () => {
 	const parent = root();
 	const model = { items: items('A', 'B', 'C') };
-	const context = h.render(parent, model, (m) => h.ul(h.composeEach(m.items, (item) => h.li(item.name))));
+	const context = h.render(parent, model, (m) => ul(h.composeEach(m.items, (item) => li(item.name))));
 	model.items.unshift({ name: 'N' });
 	const moves = countMoves(parent.firstChild, () => context.update(model));
 	assert.equal(parent.textContent, 'NABC');
@@ -56,7 +58,7 @@ test('prepending an item moves no existing nodes', () => {
 test('a list reordered by its own signal stays before following siblings', async () => {
 	const parent = root();
 	const model = { items: items('A', 'B', 'C') };
-	h.render(parent, model, (m) => h.div([h.composeEach(m.items, (item) => h.span(item.name)), h.p('footer')]));
+	h.render(parent, model, (m) => div([h.composeEach(m.items, (item) => span(item.name)), p('footer')]));
 	model.items.reverse();
 	h.signal(model.items);
 	await nextFrame();
@@ -67,7 +69,7 @@ test('signalling an item re-renders only that item', async () => {
 	const parent = root();
 	const model = { items: items('A', 'B') };
 	let rootRenders = 0;
-	h.render(parent, model, (m) => { rootRenders++; return h.ul(h.composeEach(m.items, (item) => h.li(item.name))); });
+	h.render(parent, model, (m) => { rootRenders++; return ul(h.composeEach(m.items, (item) => li(item.name))); });
 	model.items[1].name = 'B2';
 	h.signal(model.items[1]);
 	await nextFrame();
@@ -78,7 +80,7 @@ test('signalling an item re-renders only that item', async () => {
 test('signalling a parent re-renders composed children', async () => {
 	const parent = root();
 	const model = { selected: null, items: items('A', 'B') };
-	h.render(parent, model, (m) => h.ul(h.composeEach(m.items, (item) => h.li(item.name, { class: m.selected === item ? 'sel' : null }))));
+	h.render(parent, model, (m) => ul(h.composeEach(m.items, (item) => li(item.name, { class: m.selected === item ? 'sel' : null }))));
 	model.selected = model.items[1];
 	h.signal(model);
 	await nextFrame();
@@ -89,7 +91,7 @@ test('a parent and child signalled together render the child once', async () => 
 	const parent = root();
 	const model = { child: { name: 'c' } };
 	let childRenders = 0;
-	h.render(parent, model, (m) => h.compose(m.child, (child) => { childRenders++; return h.p(child.name); }));
+	h.render(parent, model, (m) => h.compose(m.child, (child) => { childRenders++; return p(child.name); }));
 	childRenders = 0;
 	h.signal(model.child);
 	h.signal(model);

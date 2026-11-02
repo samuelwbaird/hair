@@ -13,7 +13,7 @@ The reasoning behind these choices is in [DESIGN.md](DESIGN.md).
 ### How it fits together
 
  * **The model** holds the logical state, what would be saved or live on a server. Model objects persist (their identity matters), and they **signal** when anything visible through them changes.
- * **View functions** build a *specification* of the view from the model, using element functions (`h.div`, `h.p`, ...), arrays and other functions. Functions only build the spec. They have no lifecycle or state of their own.
+ * **View functions** build a *specification* of the view from the model, using element functions (`div`, `p`, ... from `elements`), arrays and other functions. Functions only build the spec. They have no lifecycle or state of their own.
  * **`compose` and `composeEach`** are the boundaries within the view. Each binds a region of the view to one model object, watches that object, and re-renders the region when it signals. Each region has a **render context** holding its transient view state and references to its DOM elements.
  * **The DOM** belongs to you as well. hair only writes what the spec changed, so transient state such as focus, scroll position, a partly typed input, or a style set by your own code is left alone.
 
@@ -27,23 +27,25 @@ The reasoning behind these choices is in [DESIGN.md](DESIGN.md).
 
 Snippet:
 
-	// bring the hair library in accessed as h.*
-	import * as h from './js/hair.js';
+	// bring in the hair functions used, and element functions for the tags used
+	import { render, composeEach, listen, elements } from './js/hair.js';
+
+	const { h1, div, p, ol, input, button } = elements;
 
 	export default function app (model) {
 		return [
-			h.h1(model.name),
+			h1(model.name),
 
-			h.div([
+			div([
 				// add this component in by immediately calling a function to return its spec
 				itemCount(model.items.length),
 
 				// compose each item in a list with its own region, watching that item for signals
-				h.ol(h.composeEach(model.items, (item) => displayItem(model, item))),
+				ol(composeEach(model.items, (item) => displayItem(model, item))),
 			]),
 
-			h.div({ class: 'add-item-area' }, [
-				h.p('Add new items below'),
+			div({ class: 'add-item-area' }, [
+				p('Add new items below'),
 
 				// add this component in by providing a function to be called with the same state object
 				addItem,
@@ -52,10 +54,10 @@ Snippet:
 	}
 
 	function addItem (model) {
-		return h.div([
+		return div([
 			// context_id stores a reference to this element in the render context
-			h.input({ context_id: 'new_item' }),
-			h.button('Add', h.listen('click', (context, element, event) => {
+			input({ context_id: 'new_item' }),
+			button('Add', listen('click', (context, element, event) => {
 				model.addItem(context.get('new_item').value);
 				context.get('new_item').value = '';
 			})),
@@ -63,10 +65,10 @@ Snippet:
 	}
 
 	// render the app into a DOM element, the returned context can be used to update or dispose the view
-	const context = h.render(document.getElementById('app'), model, app);
+	const context = render(document.getElementById('app'), model, app);
 
 	// later, the model signals when it changes, and the view updates on the next frame
-	model.addItem('feed the cat');		// calls h.signal(this) internally
+	model.addItem('feed the cat');		// calls signal(this) internally
 
 ### Viewing the example projects
 
@@ -100,7 +102,11 @@ The tests use Node's built in test runner, with jsdom as the only development de
 
 ### Building specifications
 
-`h.element(type, ...args)` specifies an HTML element, and many common HTML tags have factory functions, eg. `h.div`, `h.p`. Use `h.elementFactory(type)` to make your own. Arguments can be given in any order:
+`elements` provides a function for any tag, created the first time it is used, eg. `const { div, p, progress } = elements;`. Use bracket access for names that aren't valid identifiers, eg. `elements['my-widget']`. Any name is accepted, so a misspelt tag (`elements.dvi`) creates an unknown element rather than an error.
+
+`element(type, ...args)` does the same without the proxy, eg. `element('div', 'text')`.
+
+Arguments can be given in any order:
 
  * A string or number is text content.
  * An object is the element's properties, eg. `{ class: 'parent', disabled: true }`. Only one property object is allowed.
@@ -115,8 +121,8 @@ How values within a spec render:
 
 ### compose and composeEach
 
- * `h.compose(state, component, reuseKey)` renders `component(state, context)` in its own region. The state is passed whole, whatever its type, and watched for signals.
- * `h.composeEach(items, component, reuseKey)` creates the same kind of region for each item in a list (or any iterable). Each item is passed to the component, watched for signals, and matched to its existing DOM by identity, so reordered or inserted items reuse their elements.
+ * `compose(state, component, reuseKey)` renders `component(state, context)` in its own region. The state is passed whole, whatever its type, and watched for signals.
+ * `composeEach(items, component, reuseKey)` creates the same kind of region for each item in a list (or any iterable). Each item is passed to the component, watched for signals, and matched to its existing DOM by identity, so reordered or inserted items reuse their elements.
 
 A region is reused across renders while the same object is composed at the same point. When the object is replaced, the region (and its transient state) is discarded and rebuilt. Pass a `reuseKey` to match on something other than the state object.
 
@@ -134,9 +140,9 @@ Each region has a RenderContext, holding transient view state for that region:
 
  * `context.set(name, value, signalUpdate = false)` stores a value at this level. Pass `true` to also re-render the region on the next frame.
  * `context.get(name, defaultValue)` reads a value from this context or the closest outer context that has it.
- * `h.signal(context)` re-renders the region on the next frame.
+ * `signal(context)` re-renders the region on the next frame.
  * `context.broadcast(event, data)` sends an event to all `onBroadcast` listeners in this context and the regions within it.
- * Initial values can be passed to `h.render(parent, state, component, initialContextValues)`.
+ * Initial values can be passed to `render(parent, state, component, initialContextValues)`.
 
 ### Properties
 
@@ -159,7 +165,7 @@ Recognised property names are given special treatment:
  * `dataset`: an object merged into `element.dataset`, eg. `dataset: { state: 'open' }` gives `data-state="open"`.
  * `attributes`: an object of HTML attributes, for anything without a writable JS property (SVG, `list`, ARIA element references, custom elements). `null` or `false` removes an attribute, and `true` sets it empty.
 
-`h.setPropertyHandler(name, handler)` adds your own handler. Handlers are called on every render with `(context, element, key, value, previousValue)`, where `value` is undefined when the property has been removed from the spec.
+`setPropertyHandler(name, handler)` adds your own handler. Handlers are called on every render with `(context, element, key, value, previousValue)`, where `value` is undefined when the property has been removed from the spec.
 
 ### Listeners and lifecycle
 

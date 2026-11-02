@@ -1,5 +1,5 @@
 // reference the hair library to hook into the signal/watch mechanism
-import{ signal } from '../../hair.js';
+import { signal } from '../../hair.js';
 
 /** A simple example model for a TODO list */
 export default class TodoModel {
