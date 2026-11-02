@@ -438,9 +438,8 @@ class RenderContext {
 	}
 
 	update (state, parentRenderInsertCursor = null) {
-		// unwatch signals/updates, these are renewed after the render
-		removeWatcher(this);
-		this.updateIsRequested = false;
+		// while state is not null this context is watching it, see below
+		const previousState = this.state;
 		this.state = state;
 
 		// null and undefined render nothing
@@ -464,11 +463,18 @@ class RenderContext {
 			// commit even a partial render, so the DOM and attachments remain consistent
 			this.commit(renderPhase);
 
+			// this render is up to date, including any signals during the render
+			this.updateIsRequested = false;
+
 			// allow signals on the state, or on this context, to trigger an update
-			if (typeof state == 'object' || typeof state == 'function') {
-				watch(state, () => { this.requestUpdate(); }, this);
+			// watchers are kept from one update to the next while the state object is the same
+			if (state !== previousState) {
+				removeWatcher(this);
+				if (typeof state == 'object' || typeof state == 'function') {
+					watch(state, () => { this.requestUpdate(); }, this);
+				}
+				watch(this, () => { this.requestUpdate(); }, this);
 			}
-			watch(this, () => { this.requestUpdate(); }, this);
 		}
 
 		return renderPhase;
@@ -491,8 +497,9 @@ class RenderContext {
 		}
 		this.attachments = [];
 
-		// unwatch signals/updates
+		// unwatch signals/updates, there is no longer a state being watched
 		removeWatcher(this);
+		this.state = null;
 	}
 
 	broadcast (event, data) {
@@ -543,18 +550,18 @@ class RenderContext {
 
 		} else if (component instanceof ComposeSpecification) {
 			// compose a sub component with its own context, reused for the same state object
-			const subContext = renderPhase.findOrCreateSubContext(this, parent, component.component, [ 'compose', parent, component.state ]);
+			const subContext = renderPhase.findOrCreateSubContext(this, parent, component.component, 'compose', component.state);
 			subContext.update(component.state, renderPhase.parentRenderInsertCursor);
 
 		} else if (component instanceof ComposeEachSpecification) {
 			// a sub context for the list, which then composes each item with its own context
 			// the list context is reused by position, so items are still matched if the collection is replaced
-			const listContext = renderPhase.findOrCreateSubContext(this, parent, new EachItemComponent(component.component), [ 'each', parent ]);
+			const listContext = renderPhase.findOrCreateSubContext(this, parent, new EachItemComponent(component.component), 'each', null);
 			listContext.update(component.items, renderPhase.parentRenderInsertCursor);
 
 		} else if (component instanceof EachItemComponent) {
 			for (const item of state) {
-				const itemContext = renderPhase.findOrCreateSubContext(this, parent, component.component, [ 'item', parent, item ]);
+				const itemContext = renderPhase.findOrCreateSubContext(this, parent, component.component, 'item', item);
 				itemContext.update(item, renderPhase.parentRenderInsertCursor);
 			}
 
@@ -576,11 +583,9 @@ class RenderContext {
 	}
 
 	commit (renderPhase) {
-		// remove prior attachments
-		let i = renderPhase.priorAttachments.length;
-		while (i > 0) {
-			i--;
-			renderPhase.priorAttachments[i].remove();
+		// remove prior attachments that were not reused
+		for (const attachment of renderPhase.priorAttachments.values()) {
+			attachment.remove();
 		}
 		// these are out new attachments
 		this.attachments = renderPhase.attachments;
@@ -635,9 +640,12 @@ class RenderPhase {
 		this.context = context;
 		this.parentRenderInsertCursor = parentRenderInsertCursor;
 
-		// take a copy of all existing sub elements and sub contexts
+		// index all existing sub elements and sub contexts by type and keys
 		// and attempt to re-use and update them during the render pass
-		this.priorAttachments = [...context.attachments];
+		this.priorAttachments = new MultiIndexedList();
+		for (const attachment of context.attachments) {
+			this.priorAttachments.push(attachment.keys, attachment);
+		}
 
 		// attachments created or in use this render
 		this.attachments = [];
@@ -646,8 +654,9 @@ class RenderPhase {
 		this.newAttachments = [];
 	}
 
-	findOrCreateSubContext (context, parent, component, keys) {
-		const existing = this.find(SubContextAttachment, keys);
+	findOrCreateSubContext (context, parent, component, kind, key) {
+		const keys = [ SubContextAttachment, kind, parent, key ];
+		const existing = this.find(keys);
 		if (existing) {
 			existing.context.updateComponent(component);
 			return existing.context;
@@ -659,8 +668,8 @@ class RenderPhase {
 	}
 
 	findOrCreateElement (type, parent, state, keyValues) {
-		const keys = [ type, parent, state, ...keyValues ];
-		const existing = this.find(ElementAttachment, keys);
+		const keys = [ ElementAttachment, type, parent, state, ...keyValues ];
+		const existing = this.find(keys);
 		if (existing) {
 			this.place(parent, existing.element);
 			return existing;
@@ -675,8 +684,8 @@ class RenderPhase {
 	}
 
 	findCreateOrUpdateText (parent, text) {
-		const keys = [ parent ];
-		const existing = this.find(TextAttachment, keys);
+		const keys = [ TextAttachment, parent ];
+		const existing = this.find(keys);
 		if (existing) {
 			if (existing.text !== text) {
 				existing.textNode.data = text;
@@ -713,8 +722,8 @@ class RenderPhase {
 	}
 
 	findOrCreateDOMListener (context, parent, event, listener) {
-		const keys = [ context, parent, event ];
-		const existing = this.find(DOMListenerAttachment, keys);
+		const keys = [ DOMListenerAttachment, context, parent, event ];
+		const existing = this.find(keys);
 		if (existing) {
 			existing.updateListener(listener);
 			return existing;
@@ -724,8 +733,8 @@ class RenderPhase {
 	}
 
 	findOrCreateContextListener (context, element, type, listener, configurator, keyValues) {
-		const keys = [ context, element, type, ...keyValues ];
-		const existing = this.find(ContextListenerAttachment, keys);
+		const keys = [ ContextListenerAttachment, context, element, type, ...keyValues ];
+		const existing = this.find(keys);
 		if (existing) {
 			// set up is only run once, but keep the listener from the latest render
 			existing.listener = listener;
@@ -737,26 +746,13 @@ class RenderPhase {
 		return this.addAttachment(contextListener, keys);
 	}
 
-	find (attachmentType, keys) {
-		// NOTE: this linear search might be very inefficient on large components or long lists
-		// could replace with some kind of multi-key dictionary if needed
-		let i = 0;
-		search: while (i < this.priorAttachments.length) {
-			const attachment = this.priorAttachments[i];
-			if (attachment instanceof attachmentType) {
-				for (let j = 0; j < Math.max(attachment.keys.length, keys.length); j++) {
-					if (keys[j] !== attachment.keys[j]) {
-						i++;
-						continue search;
-					}
-				}
-				this.priorAttachments.splice(i, 1);
-				this.attachments.push(attachment);
-				return attachment;
-			}
-			i++;
+	// find and claim the first prior attachment with matching keys (the first key is the attachment type)
+	find (keys) {
+		const attachment = this.priorAttachments.shift(keys);
+		if (attachment) {
+			this.attachments.push(attachment);
 		}
-		return null;
+		return attachment;
 	}
 
 	addAttachment (attachment, keys) {
@@ -766,6 +762,66 @@ class RenderPhase {
 		return attachment;
 	}
 
+}
+
+// -- MultiIndexedList ------------------------------------
+// lists of values indexed by a sequence of keys, held in nested maps
+// so finding the first value for a set of keys is a lookup rather than a search
+
+const END_OF_KEYS = Symbol('end of keys');
+
+class MultiIndexedList {
+	constructor () {
+		this.map = new Map();
+		this.size = 0;
+	}
+
+	// add a value to the end of the list for these keys
+	push (keys, value) {
+		this.#list(keys, true).push(value);
+		this.size++;
+	}
+
+	// remove and return the first value for these keys, if there is one
+	shift (keys) {
+		const value = this.#list(keys, false)?.shift();
+		if (value === undefined) {
+			return null;
+		}
+		this.size--;
+		return value;
+	}
+
+	// all values remaining, in any order
+	*values (map = this.map) {
+		if (this.size == 0) {
+			return;
+		}
+		for (const [key, next] of map) {
+			if (key === END_OF_KEYS) {
+				yield* next;
+			} else {
+				yield* this.values(next);
+			}
+		}
+	}
+
+	#list (keys, create) {
+		let map = this.map;
+		for (let i = 0; i <= keys.length; i++) {
+			const key = (i < keys.length) ? keys[i] : END_OF_KEYS;
+			let next = map.get(key);
+			if (next === undefined) {
+				if (!create) {
+					return null;
+				}
+				next = (key === END_OF_KEYS) ? [] : new Map();
+				map.set(key, next);
+			}
+			map = next;
+		}
+		return map;
+	}
 }
 
 class RenderAttachment {
@@ -983,6 +1039,10 @@ function clearContextReference (element) {
 
 // allow either a single class or array of class names, only adding or removing those that changed in the spec
 function applyClassList (context, element, key, value, previousValue) {
+	// unchanged class values are the common case, so check before splitting names
+	if (value === previousValue || (Array.isArray(value) && Array.isArray(previousValue) && value.length == previousValue.length && value.every((name, i) => name === previousValue[i]))) {
+		return;
+	}
 	const classes = classNames(value);
 	for (const className of classNames(previousValue)) {
 		if (!classes.includes(className)) {
@@ -1009,22 +1069,21 @@ function classNames (value) {
 
 // merge an object of styles into element.style, or replace the whole inline style with a string
 function applyStyle (context, element, key, value, previousValue) {
-	const style = element.style;
 	if (typeof value == 'string') {
 		if (value !== previousValue) {
-			style.cssText = value;
+			element.style.cssText = value;
 		}
 		return;
 	}
 	if (typeof previousValue == 'string') {
-		style.cssText = '';
+		element.style.cssText = '';
 		previousValue = null;
 	}
 	applyMergedValues(value, previousValue, (name, v) => {
 		if (name.startsWith('--')) {
-			style.setProperty(name, v ?? '');
+			element.style.setProperty(name, v ?? '');
 		} else {
-			style[name] = v ?? '';
+			element.style[name] = v ?? '';
 		}
 	});
 }

@@ -46,6 +46,41 @@ test('context.set does not re-render unless asked to', async () => {
 	assert.equal(parent.textContent, 'third');
 });
 
+test('a signal of its own state during a render does not render again', async () => {
+	const parent = root();
+	const state = {};
+	let renders = 0;
+	h.render(parent, state, () => { renders++; h.signal(state); return p('x'); });
+	await nextFrame();
+	assert.equal(renders, 1);
+});
+
+test('a context watches its new state when the state object changes', async () => {
+	const parent = root();
+	const first = { name: 'first' };
+	const second = { name: 'second' };
+	let renders = 0;
+	const context = h.render(parent, first, (s) => { renders++; return p(s.name); });
+	context.update(second);
+	h.signal(first);
+	await nextFrame();
+	assert.equal(renders, 2);
+	h.signal(second);
+	await nextFrame();
+	assert.equal(renders, 3);
+});
+
+test('a context rendered again with the same state still watches it', async () => {
+	const parent = root();
+	const state = {};
+	let renders = 0;
+	const context = h.render(parent, state, () => { renders++; return p('x'); });
+	context.render(state);
+	h.signal(state);
+	await nextFrame();
+	assert.equal(renders, 3);
+});
+
 test('signalling a context re-renders its region', async () => {
 	const parent = root();
 	let renders = 0;
