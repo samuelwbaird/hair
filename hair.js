@@ -9,7 +9,7 @@
 // 	 render, createElements
 //
 //   Functions to compose component specifications for render
-//     elements, element, compose, composeEach, listen
+//     elements, element, key, compose, composeEach, listen
 //	   onPrepare, onAttach, onRemove, onUpdate, onContext
 //	   onBroadcast, onDelay, onTimer, onFrame
 //
@@ -94,9 +94,10 @@ export function createElements (parent, state, component, initialContextValues =
 // -------------------------------------------------------------------------------
 
 // construct an element spec for rendering with variable arguments
-// arguments in any order can include text content, a property object, and child components
+// arguments in any order can include text content, a property object, a key, and child components
 export function element (type, ...args) {
 	let properties = null;
+	let reuseKey = null;
 	const children = [];
 
 	for (const arg of args) {
@@ -111,6 +112,11 @@ export function element (type, ...args) {
 			children.push(arg);
 		} else if (typeof arg === 'function') {
 			children.push(arg);
+		} else if (arg instanceof Key) {
+			if (reuseKey != null) {
+				throw new Error('multiple keys for HTML element');
+			}
+			reuseKey = arg;
 		} else if (typeof arg === 'object') {
 			if (properties != null) {
 				throw new Error('multiple property objects for HTML element');
@@ -119,20 +125,33 @@ export function element (type, ...args) {
 		}
 	}
 
-	return new ElementSpecification(type, properties, children);
+	return new ElementSpecification(type, properties, children, keyValues(reuseKey));
+}
+
+// mark one or more values as a reuse key, for an element or a context listener
+// something created with a key is only reused by a later render with an equal key (values compared in order by identity)
+// without a key, things are reused in the order they are rendered
+export function key (...values) {
+	return new Key(values);
+}
+
+// check for a key, eg. when an integration accepts arguments in any order
+export function isKey (value) {
+	return value instanceof Key;
 }
 
 // mark a point within the render tree that is composed with its own render context
 // the state is passed to the component whole, and watched for signals
-// set a reuseKey object or string, to use that to make sure the same composed context is reused for the same purpose
-export function compose (state, component, reuseKey) {
-	return new ComposeSpecification(state, component, reuseKey);
+// the composed context is reused while the same state object is composed at the same point
+export function compose (state, component) {
+	return new ComposeSpecification(state, component);
 }
 
 // compose each item of a list (or any iterable) with its own render context
 // each item is passed to the component, watched for signals, and matched to its rendering by identity
-export function composeEach (items, component, reuseKey) {
-	return new ComposeEachSpecification(items, component, reuseKey);
+// the list itself can be replaced with a new collection, and existing items will still be matched
+export function composeEach (items, component) {
+	return new ComposeEachSpecification(items, component);
 }
 
 // add a DOM event listener as a child of instantiated elements
@@ -143,41 +162,41 @@ export function listen (event, listener) {
 // context listeners are set up once when first created
 // on later renders the listener is updated, so it always has the latest values from its render
 
-export function onPrepare (listener, ...reuseKeys) {
+export function onPrepare (listener, reuseKey = null) {
 	// run once during render, when this component is first created
 	return new ContextListenerSpecification('prepare', listener, (contextListener) => {
 		contextListener.listener(contextListener.context, contextListener.element);
-	}, ...reuseKeys);
+	}, reuseKey);
 }
 
-export function onAttach (listener, ...reuseKeys) {
+export function onAttach (listener, reuseKey = null) {
 	// run once during render commit the first time this component is render
 	return new ContextListenerSpecification('attach', listener, (contextListener) => {
 		contextListener.onAttach = (context, element) => {
 			contextListener.listener(context, element);
 		};
-	}, ...reuseKeys);
+	}, reuseKey);
 }
 
-export function onRemove (listener, ...reuseKeys) {
+export function onRemove (listener, reuseKey = null) {
 	// run once when removed
 	return new ContextListenerSpecification('remove', listener, (contextListener) => {
 		contextListener.onRemove = (context, element) => {
 			contextListener.listener(context, element);
 		};
-	}, ...reuseKeys);
+	}, reuseKey);
 }
 
-export function onUpdate (listener, ...reuseKeys) {
+export function onUpdate (listener, reuseKey = null) {
 	// run during render commit whenever this component is created or updated
 	return new ContextListenerSpecification('update', listener, (contextListener) => {
 		contextListener.onUpdate = (context, element) => {
 			contextListener.listener(context, element);
 		};
-	}, ...reuseKeys);
+	}, reuseKey);
 }
 
-export function onBroadcast (specificEvent, listener, ...reuseKeys) {
+export function onBroadcast (specificEvent, listener, reuseKey = null) {
 	// receive arbitrary events through the context tree
 	return new ContextListenerSpecification('broadcast', listener, (contextListener) => {
 		contextListener.onBroadcast = (event, eventData) => {
@@ -185,10 +204,10 @@ export function onBroadcast (specificEvent, listener, ...reuseKeys) {
 				contextListener.listener(contextListener.context, contextListener.element, eventData);
 			}
 		}
-	}, ...reuseKeys);
+	}, reuseKey);
 }
 
-export function onDelay (time, listener, ...reuseKeys) {
+export function onDelay (time, listener, reuseKey = null) {
 	// action X seconds after this component exists (if it still exists)
 	return new ContextListenerSpecification('delay', listener, (contextListener) => {
 		let token = null;
@@ -200,10 +219,10 @@ export function onDelay (time, listener, ...reuseKeys) {
 		contextListener.onRemove = () => {
 			cancel(token);
 		};
-	}, ...reuseKeys);
+	}, reuseKey);
 }
 
-export function onTimer (time, listener, ...reuseKeys) {
+export function onTimer (time, listener, reuseKey = null) {
 	// repeat every X seconds while this component exists
 	return new ContextListenerSpecification('timer', listener, (contextListener) => {
 		let token = null;
@@ -215,10 +234,10 @@ export function onTimer (time, listener, ...reuseKeys) {
 		contextListener.onRemove = () => {
 			cancel(token);
 		};
-	}, ...reuseKeys);
+	}, reuseKey);
 }
 
-export function onFrame (listener, ...reuseKeys) {
+export function onFrame (listener, reuseKey = null) {
 	// run every animation while this component exists
 	return new ContextListenerSpecification('frame', listener, (contextListener) => {
 		let token = null;
@@ -230,16 +249,16 @@ export function onFrame (listener, ...reuseKeys) {
 		contextListener.onRemove = () => {
 			cancel(token);
 		};
-	}, ...reuseKeys);
+	}, reuseKey);
 }
 
-export function onContext (configurator, ...reuseKeys) {
+export function onContext (configurator, reuseKey = null) {
 	return new ContextListenerSpecification('general', null, (contextListener) => {
 		// use contextListener, contextListener.context, and contextListener.element
 		// and set onAttach, onRemove, onUpdate, onBroadcast handlers
 		// the configurator is only run once, when the context listener is first created
 		configurator(contextListener);
-	}, ...reuseKeys);
+	}, reuseKey);
 }
 
 // element spec functions for any tag, created on first use and then reused
@@ -271,31 +290,30 @@ class ComponentSpecification {
 
 // a data object that contains the spec for a DOM element to be rendered or updated
 class ElementSpecification extends ComponentSpecification {
-	constructor (type, properties, children) {
+	constructor (type, properties, children, keyValues) {
 		super();
 		this.type = type;
 		this.properties = properties;
 		this.children = children;
+		this.keyValues = keyValues;
 	}
 }
 
 // a data object that specifies a sub-render of an object to be composed at a point in the render tree
 class ComposeSpecification extends ComponentSpecification {
-	constructor (state, component, reuseKey) {
+	constructor (state, component) {
 		super();
 		this.state = state;
 		this.component = component;
-		this.reuseKey = reuseKey ?? this.state;
 	}
 }
 
 // a data object that specifies a sub-render of each item in a list to be composed at a point in the render tree
 class ComposeEachSpecification extends ComponentSpecification {
-	constructor (items, component, reuseKey) {
+	constructor (items, component) {
 		super();
 		this.items = items;
 		this.component = component;
-		this.reuseKey = reuseKey ?? this.items;
 	}
 }
 
@@ -309,13 +327,31 @@ class ListenSpecification extends ComponentSpecification {
 }
 
 class ContextListenerSpecification extends ComponentSpecification {
-	constructor (type, listener, configurator, ...reuseKeys) {
+	constructor (type, listener, configurator, reuseKey) {
 		super();
 		this.type = type;
 		this.listener = listener;
 		this.configurator = configurator;
-		this.reuseKeys = [...reuseKeys];
+		this.keyValues = keyValues(reuseKey);
 	}
+}
+
+// a reuse key, holding one or more values
+class Key {
+	constructor (values) {
+		this.values = values;
+	}
+}
+
+// the values of an optional reuse key, only values marked with key(...) are accepted
+function keyValues (reuseKey) {
+	if (reuseKey == null) {
+		return [];
+	}
+	if (reuseKey instanceof Key) {
+		return reuseKey.values;
+	}
+	throw new Error('reuse keys must be given using key(...)');
 }
 
 // the component of the render context created for composeEach, composing each item in its state
@@ -499,25 +535,26 @@ class RenderContext {
 
 		} else if (component instanceof ElementSpecification) {
 			// find or make the element, and apply the properties of this element
-			const attachment = renderPhase.findOrCreateElement(component.type, parent, state, component.properties);
+			const attachment = renderPhase.findOrCreateElement(component.type, parent, state, component.keyValues);
 			applyProperties(this, attachment, component.properties);
 
 			// add the children of this element
 			this.#apply(attachment.element, state, component.children, renderPhase);
 
 		} else if (component instanceof ComposeSpecification) {
-			// compose a sub component with its own context
-			const subContext = renderPhase.findOrCreateSubContext(this, parent, component.component, component.reuseKey, 'compose');
+			// compose a sub component with its own context, reused for the same state object
+			const subContext = renderPhase.findOrCreateSubContext(this, parent, component.component, [ 'compose', parent, component.state ]);
 			subContext.update(component.state, renderPhase.parentRenderInsertCursor);
 
 		} else if (component instanceof ComposeEachSpecification) {
 			// a sub context for the list, which then composes each item with its own context
-			const listContext = renderPhase.findOrCreateSubContext(this, parent, new EachItemComponent(component.component), component.reuseKey, 'each');
+			// the list context is reused by position, so items are still matched if the collection is replaced
+			const listContext = renderPhase.findOrCreateSubContext(this, parent, new EachItemComponent(component.component), [ 'each', parent ]);
 			listContext.update(component.items, renderPhase.parentRenderInsertCursor);
 
 		} else if (component instanceof EachItemComponent) {
 			for (const item of state) {
-				const itemContext = renderPhase.findOrCreateSubContext(this, parent, component.component, item, 'item');
+				const itemContext = renderPhase.findOrCreateSubContext(this, parent, component.component, [ 'item', parent, item ]);
 				itemContext.update(item, renderPhase.parentRenderInsertCursor);
 			}
 
@@ -525,10 +562,13 @@ class RenderContext {
 			renderPhase.findOrCreateDOMListener(this, parent, component.event, component.listener);
 
 		} else if (component instanceof ContextListenerSpecification) {
-			renderPhase.findOrCreateContextListener(this, parent, component.type, component.listener, component.configurator, component.reuseKeys);
+			renderPhase.findOrCreateContextListener(this, parent, component.type, component.listener, component.configurator, component.keyValues);
 
 		} else if (typeof component === 'function') {
 			this.#apply(parent, state, component(state, this), renderPhase);
+
+		} else if (component instanceof Key) {
+			throw new Error('a key must be an argument of an element or listener, not a child');
 
 		} else {
 			throw new Error('unhandled component type ' + (typeof component));
@@ -606,8 +646,7 @@ class RenderPhase {
 		this.newAttachments = [];
 	}
 
-	findOrCreateSubContext (context, parent, component, keyObject, kind) {
-		const keys = [ kind, parent, keyObject ];
+	findOrCreateSubContext (context, parent, component, keys) {
 		const existing = this.find(SubContextAttachment, keys);
 		if (existing) {
 			existing.context.updateComponent(component);
@@ -619,8 +658,8 @@ class RenderPhase {
 		return sub;
 	}
 
-	findOrCreateElement (type, parent, state, properties) {
-		const keys = [ type, parent, state, properties?.id, properties?.context_id, properties?.key ];
+	findOrCreateElement (type, parent, state, keyValues) {
+		const keys = [ type, parent, state, ...keyValues ];
 		const existing = this.find(ElementAttachment, keys);
 		if (existing) {
 			this.place(parent, existing.element);
@@ -684,8 +723,8 @@ class RenderPhase {
 		return this.addAttachment(new DOMListenerAttachment(context, parent, event, listener), keys);
 	}
 
-	findOrCreateContextListener (context, element, type, listener, configurator, reuseKeys) {
-		const keys = [ context, element, type, ...reuseKeys ];
+	findOrCreateContextListener (context, element, type, listener, configurator, keyValues) {
+		const keys = [ context, element, type, ...keyValues ];
 		const existing = this.find(ContextListenerAttachment, keys);
 		if (existing) {
 			// set up is only run once, but keep the listener from the latest render
@@ -912,7 +951,6 @@ function defaultPropertyValue (element, key) {
 
 const propertyHandlers = {
 	context_id: applyContextReference,
-	key: ignoreProperty,
 	class: applyClassList,
 	style: applyStyle,
 	dataset: applyDataset,
@@ -921,10 +959,6 @@ const propertyHandlers = {
 
 export function setPropertyHandler(name, handler) {
 	propertyHandlers[name] = handler;
-}
-
-function ignoreProperty () {
-	// used in the spec, but not applied to the element
 }
 
 // store a reference to the element as a context value

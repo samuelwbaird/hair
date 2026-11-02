@@ -54,10 +54,15 @@ How values in a spec render:
  * It watches that object, and re-renders the region when the object signals.
  * It owns a RenderContext holding the region's transient state and DOM references.
  * It is reused across renders while the same object is composed at the same point. When the object is replaced, the region and its transient state are discarded and rebuilt.
+ * **The state object is always its key.** Compose regions don't accept other reuse keys. Forcing a different identity, or a rebuild, would work against the model being the identity. A new rendering of the region comes from a new object.
 
 `compose` always passes its state through whole, whatever its type. An array, Map or iterable model given to `compose` is watched and rendered as one object.
 
 Lists are explicit. `composeEach(items, view)` creates the same compose boundary once per item: each item is watched, has its own context, and is matched to its region by identity. Only `composeEach` iterates, and only over the collection it was given, so items that are themselves iterable (Map entries, tuples) are passed through whole. What a call does follows from the function called, not from the type of the state.
+
+For `composeEach` the identity that matters is each item's, not the collection's. The list's own region is matched by position, so the model can replace the collection (eg. with `filter`) and existing items keep their regions and DOM.
+
+Regions for the same object in the same parent element are matched in order. That's rarely a problem, and wrapping each in its own element fixes it.
 
 ## Re-render semantics
 
@@ -94,7 +99,17 @@ The DOM is shared between hair and the developer's own code. That is only safe w
  * **hair writes only what the spec changed.** A prop is written when its spec value differs from the previous render's spec. Props that disappear from the spec are reset to their default. Anything the spec didn't change is left alone. The comparison is against the previous spec, not against the DOM.
  * **Each property has one owner.** A given property (a class, a style, `value`, ...) is set either by the spec or by the developer's DOM code, never both.
  * **Transient DOM state lives as long as the node.** A node survives while its compose region survives and it is matched to the same element in that region's spec. Moving elements is avoided where possible, because moves lose focus and restart animations.
- * **Elements can have reuse keys.** By default, elements within a region are matched by position. An element-level `key` matches it by that key instead, the same way other attachments already accept reuse keys. Use it when an element's position in the spec isn't stable but its DOM state should follow it.
+ * **Elements can have reuse keys.** By default, elements within a region are matched by position. An element given a `key(...)` argument is matched by that key instead. Use it when an element's position in the spec isn't stable but its DOM state should follow it.
+
+## Keys
+
+`key(...values)` is the one mechanism for reuse keys, used by elements and by context listeners (and integrations such as PIXI views):
+
+ * **Something created with a key is only reused by a later render with an equal key.** Values are compared in order, by identity. Without a key, things are reused in the order they are rendered.
+ * For an element this gives **identity** among its siblings. For a listener it gives **invalidation**: the listener is created again when the key's values change. Both come from the same rule.
+ * A key is a tagged value rather than a positional argument or a property. Element arguments are identified by type in any order, so a key has to identify itself. Keeping it out of the property object means properties only hold things applied to the element.
+ * Nothing else acts as a hidden key. `id` and `context_id` don't affect matching, and a reused element given a new `context_id` simply moves its reference to the new name.
+ * Compose regions don't take keys. Their state object is always their key.
 
 ## Properties: JS naming throughout
 

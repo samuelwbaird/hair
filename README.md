@@ -27,10 +27,10 @@ The reasoning behind these choices is in [DESIGN.md](DESIGN.md).
 
 Snippet:
 
-	// bring in the hair functions used, and element functions for the tags used
-	import { render, composeEach, listen, elements } from './js/hair.js';
+	// bring the hair library in accessed as h.*, and element functions for the tags used
+	import * as h from './js/hair.js';
 
-	const { h1, div, p, ol, input, button } = elements;
+	const { h1, div, p, ol, input, button } = h.elements;
 
 	export default function app (model) {
 		return [
@@ -41,7 +41,7 @@ Snippet:
 				itemCount(model.items.length),
 
 				// compose each item in a list with its own region, watching that item for signals
-				ol(composeEach(model.items, (item) => displayItem(model, item))),
+				ol(h.composeEach(model.items, (item) => displayItem(model, item))),
 			]),
 
 			div({ class: 'add-item-area' }, [
@@ -57,7 +57,7 @@ Snippet:
 		return div([
 			// context_id stores a reference to this element in the render context
 			input({ context_id: 'new_item' }),
-			button('Add', listen('click', (context, element, event) => {
+			button('Add', h.listen('click', (context, element, event) => {
 				model.addItem(context.get('new_item').value);
 				context.get('new_item').value = '';
 			})),
@@ -65,10 +65,12 @@ Snippet:
 	}
 
 	// render the app into a DOM element, the returned context can be used to update or dispose the view
-	const context = render(document.getElementById('app'), model, app);
+	const context = h.render(document.getElementById('app'), model, app);
 
 	// later, the model signals when it changes, and the view updates on the next frame
-	model.addItem('feed the cat');		// calls signal(this) internally
+	model.addItem('feed the cat');		// calls h.signal(this) internally
+
+Importing hair as `h`, and only the tags from `h.elements`, keeps hair's function names (`h.key`, `h.delay`, `h.signal`, ...) from clashing with local variables, while the tags used in a view stay short. The reference below lists names without the `h.` prefix.
 
 ### Viewing the example projects
 
@@ -110,6 +112,7 @@ Arguments can be given in any order:
 
  * A string or number is text content.
  * An object is the element's properties, eg. `{ class: 'parent', disabled: true }`. Only one property object is allowed.
+ * A `key(...)` is the element's reuse key (see Keys). Only one key is allowed.
  * An array, function or other spec is a child.
 
 How values within a spec render:
@@ -121,10 +124,14 @@ How values within a spec render:
 
 ### compose and composeEach
 
- * `compose(state, component, reuseKey)` renders `component(state, context)` in its own region. The state is passed whole, whatever its type, and watched for signals.
- * `composeEach(items, component, reuseKey)` creates the same kind of region for each item in a list (or any iterable). Each item is passed to the component, watched for signals, and matched to its existing DOM by identity, so reordered or inserted items reuse their elements.
+ * `compose(state, component)` renders `component(state, context)` in its own region. The state is passed whole, whatever its type, and watched for signals.
+ * `composeEach(items, component)` creates the same kind of region for each item in a list (or any iterable). Each item is passed to the component, watched for signals, and matched to its existing DOM by identity, so reordered or inserted items reuse their elements.
 
-A region is reused across renders while the same object is composed at the same point. When the object is replaced, the region (and its transient state) is discarded and rebuilt. Pass a `reuseKey` to match on something other than the state object.
+The state object is always the key for a region. A region is reused across renders while the same object is composed at the same point. When the object is replaced, the region (and its transient state) is discarded and rebuilt.
+
+For `composeEach` the identity that matters is each item's, not the collection's. The collection can be replaced (eg. `this.items = this.items.filter(...)`) and existing items keep their regions and DOM.
+
+Regions for the same object, composed in the same parent element, are matched in order. If one of them is conditional, wrap each in its own element so they can't swap.
 
 ### Re-rendering
 
@@ -159,13 +166,27 @@ Each property should have one owner: set either by the spec, or by your own DOM 
 Recognised property names are given special treatment:
 
  * `context_id`: stores a reference to the element as a context value, eg. `context_id: 'textbox'` then `context.get('textbox')`.
- * `key`: a reuse key for the element. By default elements within a region are matched by position. With a key they are matched by key, so their DOM state follows them when their position in the spec changes.
  * `class`: a class name, space separated names, or an array of names (falsy entries are ignored). Only classes from the previous spec are removed, so classes added by DOM code stay.
  * `style`: an object merged into `element.style` (including `--custom` properties), or a string replacing the whole inline style.
  * `dataset`: an object merged into `element.dataset`, eg. `dataset: { state: 'open' }` gives `data-state="open"`.
  * `attributes`: an object of HTML attributes, for anything without a writable JS property (SVG, `list`, ARIA element references, custom elements). `null` or `false` removes an attribute, and `true` sets it empty.
 
 `setPropertyHandler(name, handler)` adds your own handler. Handlers are called on every render with `(context, element, key, value, previousValue)`, where `value` is undefined when the property has been removed from the spec.
+
+### Keys
+
+`key(...values)` marks one or more values as a reuse key, for an element or a listener. One rule covers both:
+
+ * Something created with a key is only reused by a later render with an equal key. Values are compared in order, by identity.
+ * Without a key, elements and listeners are reused in the order they are rendered.
+
+For an element, a key gives it an identity among its siblings, so its DOM state follows it when its position in the spec changes, eg. `input(h.key('search'), { value })`.
+
+For a listener, a key rebuilds it when the values change, eg. `h.onAttach(startLevel, h.key(game.level))` runs again for each new level.
+
+`isKey(value)` checks for a key, for integrations that accept arguments in any order.
+
+Compose regions don't take keys. Their state object is always their key.
 
 ### Listeners and lifecycle
 
@@ -180,7 +201,7 @@ These are added as children of an element, and given `(context, element)` where 
  * `onDelay(seconds, listener)`, `onTimer(seconds, listener)`, `onFrame(listener)` timers that are cancelled when removed.
  * `onContext(configurator)` called once with the context listener, to set `onAttach`, `onUpdate`, `onRemove` and `onBroadcast` together, and `addDisposable` for anything to be disposed on removal.
 
-Listeners are set up once, when first created, but always call the listener from the latest render. Optional reuse keys can be passed after the listener, to only reuse a listener with matching keys.
+Listeners are set up once, when first created, but always call the listener from the latest render. Each of the `on...` functions takes an optional `key(...)` as its last argument, to create the listener again when the key changes. `listen` doesn't take a key, its listener is always updated in place.
 
 ### Signals
 

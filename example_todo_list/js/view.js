@@ -1,14 +1,14 @@
 // reference the hair library to access the provided functions to generate elements
-import { composeEach, listen, elements } from '../../hair.js';
+import * as h from '../../hair.js';
 
-const { h1, div, p, span, ol, button, input } = elements;
+const { h1, div, p, span, ol, button, input } = h.elements;
 
 /** top level view, render the app as a title, list, and "add new" component */
 export default function app (model) {
 	return [
 		h1(model.name),
 		div([
-			ol(composeEach(model.items, (item) => displayItem(model, item))),
+			ol(h.composeEach(model.items, (item) => displayItem(model, item))),
 			itemCount(model.items.length),
 			sortButton,
 		]),
@@ -33,7 +33,7 @@ function itemCount (count) {
 function sortButton (model) {
 	// sort button to test out ordering of re-used elements
 	return [
-		button('Sort Items', { class: ['btn', 'btn-sort'] }, listen('click', () => { model.sortItems(); })),
+		button('Sort Items', { class: ['btn', 'btn-sort'] }, h.listen('click', () => { model.sortItems(); })),
 		div({ style: { display: 'inline', marginRight: '10px' }}),
 		span('(alphabetical sort, with completed items last)'),
 	];
@@ -43,7 +43,7 @@ function sortButton (model) {
 function displayItem (model, item) {
 	return div([
 		input({ type: 'checkbox', checked: item.completed, disabled: item.completed }, [
-			listen('change', (context, element) => { 
+			h.listen('change', (context, element) => { 
 				if (element.checked) {
 					item.setCompleted();
 				}
@@ -52,7 +52,7 @@ function displayItem (model, item) {
 		div({ style: { display: 'inline', marginRight: '5px' }}),
 		span(item.text, { class: 'txt-todo', style: { textDecoration: (item.completed ? 'line-through' : '') }}),
 		div({ style: { display: 'inline', marginRight: '5px' }}),
-		button('Delete', { class: ['btn', 'btn-delete'] }, listen('click', () => { model.removeItem(item); })),
+		button('Delete', { class: ['btn', 'btn-delete'] }, h.listen('click', () => { model.removeItem(item); })),
 	]);
 }
 
@@ -61,7 +61,7 @@ function addItem (model) {
 	return div([
 		input({ context_id: 'txt_input' }),
 		div({ style: { display: 'inline', marginRight: '10px' }}),
-		button('Add', { class: ['btn', 'btn-add'] }, listen('click', (context, element) => {
+		button('Add', { class: ['btn', 'btn-add'] }, h.listen('click', (context, element) => {
 			// use a reference to a another element within this same context, using the special context_id property
 			model.addItem(context.get('txt_input').value);
 			context.get('txt_input').value = '';

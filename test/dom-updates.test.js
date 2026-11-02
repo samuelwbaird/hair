@@ -134,8 +134,8 @@ test('elements are matched by key rather than position', () => {
 	const state = {};
 	let showFirst = true;
 	const context = h.render(parent, state, () => [
-		showFirst ? input({ key: 'first' }) : null,
-		input({ key: 'second' }),
+		showFirst ? input(h.key('first')) : null,
+		input(h.key('second')),
 	]);
 	const second = parent.children[1];
 	second.value = 'typed';

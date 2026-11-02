@@ -1,12 +1,12 @@
 // reference the hair library to hook into the signal/watch mechanism
-import { render, compose, signal, listen, elements } from '../../hair.js';
+import * as h from '../../hair.js';
 import * as ht from '../../hair.tween.js';
 import * as hp from '../../hair.pixi.js';
 
 import * as model from './model.js';
 import * as scene from './scene.js';
 
-const { div, button, canvas } = elements;
+const { div, button, canvas } = h.elements;
 
 // show an HTML loading scene while loading assets, (async load function)
 // then show a CharacterView, with an animated named character
@@ -18,7 +18,7 @@ export async function loadAssetsAndLaunch (parent) {
 	let app = new App();
 	app.setView(loadingView);
 	
-	const context = render(parent, app, appView);
+	const context = h.render(parent, app, appView);
 	context.set('app', app);
 
 	// load assets via pixi
@@ -27,7 +27,7 @@ export async function loadAssetsAndLaunch (parent) {
 	sprites.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST;
 		
 	const game = new model.GameModel();
-	app.setView(() => compose(game, () => { return characterView(game); }));
+	app.setView(() => h.compose(game, () => { return characterView(game); }));
 }
 
 class App {
@@ -38,7 +38,7 @@ class App {
 		
 	setView (view) {
 		this.currentView = view;
-		signal(this);
+		h.signal(this);
 	}	
 }
 
@@ -62,7 +62,7 @@ function appView (app) {
 			// h.onAttach((context, element) => {
 			// 	context.get('pixi_canvas').enableTouchEvents(element);
 			// }),
-			compose(app, app.currentView),
+			h.compose(app, app.currentView),
 		]),
 	];
 }
@@ -80,13 +80,13 @@ function loadingView (model, context) {
 
 function characterView(model) {
 	return [
-		hp.pixi_view(() => { return new scene.CharacterScene(model.character); }, model.character),
+		hp.pixi_view(() => { return new scene.CharacterScene(model.character); }, h.key(model.character)),
 		div({ class: 'character-ui' }, [
 			div(), //{ style: { pointerEvents: 'auto' } }),
 			div({ class: 'slug' }, model.character.name, noClickThrough),
 			div({ class: 'slug' }, model.character.role.name, noClickThrough),
 			div([
-				button('Re-roll', listen('click', () => {
+				button('Re-roll', h.listen('click', () => {
 					model.actionCreateNewCharacter();
 				})),
 				noClickThrough,
@@ -97,7 +97,7 @@ function characterView(model) {
 
 // trap and stop propagation of click events on this element
 function noClickThrough () {
-	return listen('pointerdown', (context, element, e) => {
+	return h.listen('pointerdown', (context, element, e) => {
 		e.stopPropagation();
 	});
 }

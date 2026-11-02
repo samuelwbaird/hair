@@ -8,23 +8,24 @@
 // This will be registeted in the render context tree, anywhere in the rest of the tree add
 // a pixi_view, and control it using the timing and tweening and updates from hair
 //
-// import { elements } from 'hair.js';
+// import * as h from 'hair.js';
 // import * as hp from 'hair.pixi.js';
 //
-// const { canvas } = elements;
+// const { canvas } = h.elements;
 //
-// function gameView () {
+// function gameView (game) {
 //   return [
 //
 //    canvas({ class: 'game-canvas' }, hp.pixi_canvas((pixiCanvas) => {
 //      pixiCanvas.setLogicalSize(480, 320);
-//    }, ...reuseKeys)),
+//    })),
 //
-//    // pixi_view (properties, constructor or create spec, ...reuseKeys)
+//    // pixi_view (properties, constructor or create spec, key), each optional and in any order
 //    hp.pixi_view([
 //      // create spec
-//    ], ...reuseKeys),
-//    hp.pixi_view(() => { return new SceneView(); }, ...reuseKeys),
+//    ]),
+//    // a key rebuilds the view when its values change
+//    hp.pixi_view(() => { return new SceneView(game.level); }, h.key(game.level)),
 // ];
 //
 // Reference
@@ -52,7 +53,7 @@ import * as tween from './hair.tween.js';
 
 // attach an HTML canvas to the DOM as part of a hair view component
 // include a callback to configure that canvas when it is first added
-export function pixi_canvas (withCanvas, ...reuseKeys) {
+export function pixi_canvas (withCanvas, reuseKey = null) {
 	return hair.onContext((contextListener) => {
 		// create a pixi canvas object immediately
 		// and set it in the context tree for remainder of render
@@ -70,42 +71,36 @@ export function pixi_canvas (withCanvas, ...reuseKeys) {
 				pixi_canvas = null;
 			}
 		};
-	}, ...reuseKeys);
+	}, reuseKey);
 }
 
 // create or update a pixi view on each render
 export function pixi_view (...args) {
-	// consume properties in this order
-	// a properties object, if it is the first argument
-	// a constructor, if it is the first or second argument
-	// a create spec array, if it is the first or second argument
-	// all remaining args are used as reuse keys
+	// arguments in any order, each optional
+	// a properties object, a constructor, a create spec array, and a reuse key given with key(...)
 	let constructor = null;
 	let properties = null;
-	let createSpec = null
-	let reuseKeys = [];
-	let index = 0;
+	let createSpec = null;
+	let reuseKey = null;
+	const once = (current, arg, name) => {
+		if (current != null) {
+			throw new Error('multiple ' + name + ' arguments for pixi_view');
+		}
+		return arg;
+	};
 	for (const arg of args) {
-		if (Array.isArray(arg)) {
-			if (createSpec == null && reuseKeys.length == 0) {
-				createSpec = arg;
-			} else {
-				reuseKeys.push(arg);
-			}
-		} else if (typeof arg == 'object') {
-			if (properties == null && createSpec == null && constructor == null) {
-				properties = arg;
-			} else {
-				reuseKeys.push(arg);
-			}
+		if (arg == null) {
+			// ignored
+		} else if (hair.isKey(arg)) {
+			reuseKey = once(reuseKey, arg, 'key');
+		} else if (Array.isArray(arg)) {
+			createSpec = once(createSpec, arg, 'create spec');
 		} else if (typeof arg == 'function') {
-			if (constructor == null && reuseKeys.length == 0) {
-				constructor = arg;
-			} else {
-				reuseKeys.push(arg);
-			}
+			constructor = once(constructor, arg, 'constructor');
+		} else if (typeof arg == 'object') {
+			properties = once(properties, arg, 'properties');
 		} else {
-			reuseKeys.push(arg);
+			throw new Error('unexpected argument for pixi_view, reuse keys must be given using key(...)');
 		}
 	}
 
@@ -182,7 +177,7 @@ export function pixi_view (...args) {
 				view = null;
 			}
 		};
-	}, ...reuseKeys);
+	}, reuseKey);
 }
 
 // -- shared asset management --------------------------------------------------------------------
