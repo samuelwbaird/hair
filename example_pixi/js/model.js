@@ -1,4 +1,4 @@
-import * as h from '../../../hair.js';
+import * as h from '../../hair.js';
 
 export class GameModel {
 	constructor () {

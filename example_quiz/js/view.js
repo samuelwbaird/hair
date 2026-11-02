@@ -6,7 +6,7 @@ import * as h from '../../hair.js';
 export function mainMenuView (app) {
 	return [
 		h.h1('Example Quiz App'),
-		h.div({ class: 'button-holder' }, h.compose(app.levels, mainMenuButton)),
+		h.div({ class: 'button-holder' }, h.composeEach(app.levels, mainMenuButton)),
 		h.p('This app presents simple example quizzes using maths questions with multichoice answers, as an example of structuring multiple views and features like timers.'),
 				
 		// broadcast example
@@ -47,7 +47,7 @@ function questionView (quiz, question) {
 function questionInPlay (quiz, question) {
 	let delay = 0;
 	return [
-		h.div({ class: 'answer-holder' }, h.compose(question.answers, (answer) => {
+		h.div({ class: 'answer-holder' }, h.composeEach(question.answers, (answer) => {
 			return h.button(answer.text, { class: 'answer', style: { opacity: 0 } }, [
 				h.listen('click', () => {
 					question.selectAnswer(answer);
@@ -64,7 +64,7 @@ function questionInPlay (quiz, question) {
 
 function questionAnswered (quiz, question) {
 	return [
-		h.div({ class: 'answer-holder' }, h.compose(question.answers, (answer) => {
+		h.div({ class: 'answer-holder' }, h.composeEach(question.answers, (answer) => {
 			return h.button(answer.text, {
 				// show which button was selected and which was correct
 				class: ['answer', (answer.correct ? 'correct' : '')], 
@@ -90,7 +90,7 @@ function questionNumber (quiz, question) {
 function timerView (timer) {
 	return h.div({ class: 'timer-holder' }, [
 		h.element('progress', { context_id: 'progress', max: 100, value: 100 }, h.onFrame((context, element) => {
-			context.progress.value = timer.percentRemaining();
+			context.get('progress').value = timer.percentRemaining();
 		})),
 	]);
 }

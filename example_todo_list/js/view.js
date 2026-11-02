@@ -6,7 +6,7 @@ export default function app (model) {
 	return [
 		h.h1(model.name),
 		h.div([
-			h.ol(h.compose(model.items, (item) => displayItem(model, item))),
+			h.ol(h.composeEach(model.items, (item) => displayItem(model, item))),
 			itemCount(model.items.length),
 			sortButton,
 		]),
@@ -61,8 +61,8 @@ function addItem (model) {
 		h.div({ style: { display: 'inline', marginRight: '10px' }}),
 		h.button('Add', { class: ['btn', 'btn-add'] }, h.listen('click', (context, element) => {
 			// use a reference to a another element within this same context, using the special context_id property
-			model.addItem(context.txt_input.value);
-			context.txt_input.value = '';
+			model.addItem(context.get('txt_input').value);
+			context.get('txt_input').value = '';
 		})),
 	]);
 }

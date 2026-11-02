@@ -41,8 +41,7 @@
 //  * match canvas bounds to dom bounds
 //  * respond to an event on resize
 
-import * as core from './hair.core.js';
-import * as html from './hair.html.js';
+import * as hair from './hair.js';
 import * as tween from './hair.tween.js';
 
 // -- public interface ----------------------------------------------------------------------
@@ -52,7 +51,7 @@ import * as tween from './hair.tween.js';
 // attach an HTML canvas to the DOM as part of a hair view component
 // include a callback to configure that canvas when it is first added
 export function pixi_canvas (withCanvas, ...reuseKeys) {
-	return html.onContext((contextListener) => {
+	return hair.onContext((contextListener) => {
 		// create a pixi canvas object immediately
 		// and set it in the context tree for remainder of render
 		let pixi_canvas = new PixiCanvas();
@@ -108,7 +107,7 @@ export function pixi_view (...args) {
 		}
 	}
 
-	return html.onContext((contextListener) => {
+	return hair.onContext((contextListener) => {
 		const pixi_canvas = contextListener.context.get('pixi_canvas');
 		if (!pixi_canvas) {
 			throw new Error('There must be a pixi canvas within the context tree to create a node.');
@@ -176,7 +175,7 @@ export function pixi_view (...args) {
 
 		contextListener.onRemove = (context, element) => {
 			if (view) {
-				core.markObjectAsDisposed(view);
+				hair.markObjectAsDisposed(view);
 				view.removeFromParent();
 				view = null;
 			}
@@ -261,18 +260,18 @@ export class PixiCanvas {
 		this.canvas = canvas;
 
 		// set up phased frame events
-		core.onAnyFrame(() => { this.phasePrepareFrame(); }, this).phase = PHASE_PREPARE_FRAME;
-		core.onAnyFrame(() => { this.phaseRenderFrame(); }, this).phase = PHASE_RENDER_FRAME;
+		hair.onAnyFrame(() => { this.phasePrepareFrame(); }, this).phase = PHASE_PREPARE_FRAME;
+		hair.onAnyFrame(() => { this.phaseRenderFrame(); }, this).phase = PHASE_RENDER_FRAME;
 
 		// then request at least one specific frame to trigger the first render
-		core.onNextFrame(() => { this.phaseConfig(); }, this).phase = PHASE_CONFIG;
+		hair.onNextFrame(() => { this.phaseConfig(); }, this).phase = PHASE_CONFIG;
 	}
 
 	withAvailableScreen (action, owner) {
 		if (this.pixiApp) {
 			action();
 		} else {
-			core.onNextFrame(() => {
+			hair.onNextFrame(() => {
 				action();
 			}, owner).phase = PHASE_LATE_PREPARE;
 		}
@@ -293,7 +292,7 @@ export class PixiCanvas {
 		// assume if the window resizes we need to re-render
 		this.listen(window, 'resize', () => {
 			// do nothing, but this makes sure a render is triggered
-			core.requireNextFrame();
+			hair.requireNextFrame();
 		});
 	}
 
@@ -398,7 +397,7 @@ export class PixiCanvas {
 
 		// touch events will be dispatched on the next frame
 		this.touchEvents.push(touch);
-		core.requireNextFrame();
+		hair.requireNextFrame();
 	}
 
 	phaseRenderFrame () {
@@ -410,7 +409,7 @@ export class PixiCanvas {
 			if (view.children) {
 				for (const child of view.children) {
 					if (child instanceof PixiClip) {
-						child.updateAnimation(core.frameDeltaSeconds, (callback) => {
+						child.updateAnimation(hair.frameDeltaSeconds, (callback) => {
 							callbacks.push(callback);
 						});
 					}
@@ -577,7 +576,7 @@ export class PixiView extends PIXI.Container {
 	// }
 
 	delay (seconds, action) {
-		return core.delay(seconds, action, this);
+		return hair.delay(seconds, action, this);
 	}
 
 	tween(target, properties, timing) {
@@ -589,11 +588,11 @@ export class PixiView extends PIXI.Container {
 	}
 
 	wait (timeOrCondition, conditionCheckPeriod = 0) {
-		return core.wait(timeOrCondition, this, conditionCheckPeriod);
+		return hair.wait(timeOrCondition, this, conditionCheckPeriod);
 	}
 
 	schedule (asyncFiberFunction) {
-		return core.schedule(asyncFiberFunction, this);
+		return hair.schedule(asyncFiberFunction, this);
 	}
 
 	broadcast (event, data) {
@@ -877,7 +876,7 @@ export class PixiClip extends PIXI.Container {
 	}
 
 	play (animation, loopOrOncomplete) {
-		core.requireNextFrame();
+		hair.requireNextFrame();
 
 		if (typeof animation == 'string') {
 			animation = animations[animation];
@@ -947,7 +946,7 @@ export class PixiClip extends PIXI.Container {
 		}
 
 		if (this.isPlaying) {
-			core.requireNextFrame();
+			hair.requireNextFrame();
 		} else {
 			if (this.onComplete) {
 				withCallbacks(this.onComplete);

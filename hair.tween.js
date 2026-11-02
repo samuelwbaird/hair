@@ -26,7 +26,7 @@
 //   const t = transform (domElement);
 //   tween(t, { scale: 1.5 }, interpolate([0, 0.8, 1, 0.8, 0, 0.1, 0], 1));
 
-import * as core from './hair.core.js';
+import * as hair from './hair.js';
 
 // -- public interface ----------------------------------------------------------------------
 
@@ -50,7 +50,7 @@ export function asyncTween(target, properties, timing, owner = null) {
 }
 
 export function cancelTweensOf(target) {
-	core.cancel(target);
+	hair.cancel(target);
 }
 
 export function linear(duration, ...args) {
@@ -98,23 +98,23 @@ class Tween {
 		if (timing.delay == 0) {
 			this.#begin();
 		} else {
-			core.delay(timing.delay, () => { this.#begin(); }, this.owner);
+			hair.delay(timing.delay, () => { this.#begin(); }, this.owner);
 		}
 	}
 
 	#begin () {
-		this.startTime = core.getFrameStartTime();
+		this.startTime = hair.getFrameStartTime();
 		this.properties = {}
 		for (const k in this.propertiesRequested) {
 			this.properties[k] = captureTweenProperty(this.target, k, this.propertiesRequested[k]);
 		}
-		this.timer = core.onEveryFrame(() => {
-			this.#update(Math.max(0, Math.min(1, (core.getFrameStartTime() - this.startTime) / (this.timing.duration * 1000))));
+		this.timer = hair.onEveryFrame(() => {
+			this.#update(Math.max(0, Math.min(1, (hair.getFrameStartTime() - this.startTime) / (this.timing.duration * 1000))));
 		}, this.owner);
 	}
 
 	#update (transition) {
-		if (core.isObjectDisposed(this) || core.isObjectDisposed(this.owner)) {
+		if (hair.isObjectDisposed(this) || hair.isObjectDisposed(this.owner)) {
 			return;
 		}
 
@@ -134,7 +134,7 @@ class Tween {
 	}
 
 	complete () {
-		if (core.isObjectDisposed(this) || core.isObjectDisposed(this.owner)) {
+		if (hair.isObjectDisposed(this) || hair.isObjectDisposed(this.owner)) {
 			return;
 		}
 		this.#update(1);
@@ -142,13 +142,13 @@ class Tween {
 
 	cancel () {
 		if (this.timer) {
-			core.cancel(this.timer);
+			hair.cancel(this.timer);
 			this.timer = null;
 		}
 		this.target = null;
 		this.onComplete = null;
 		this.properties = null;
-		core.markObjectAsDisposed(this);
+		hair.markObjectAsDisposed(this);
 	}
 
 }
