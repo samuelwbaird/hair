@@ -1,98 +1,93 @@
 # hair.js
 
 ## Overview
-A Javascript library for creation and update of DOM elements via component function composition (but not purely FRP style)
 
-Taking a few of the things I think people like about FRP libraries and removing others. Less concerned with managing a functional reactive component state isolated from the DOM, and more with responding to a separate model/world state. Some of these choices make more sense from the point of view of games, simulations, and long lived state, rather than more transactional websites with fresh queries per page.
+A Javascript library for creating and updating DOM elements from composable view functions, driven by a separate, long-lived model.
 
-hair.js presupposes an app state or model, that is maintained and updated over the life of the program in response to user actions or network driven updates. The developer creates composable functions that take the current state of the app, or a part of that state, and recursively produce "component specifications" describing the "view" produced for that state. The main functions for producing this view specification allow the developer to mix text, HTML elements, and child elements including functions, arrays, or explicitly composed sub-components, allowing a fluid and natural shape to the view functions. A render pass then creates or updates DOM elements to match that specification, hooking DOM listeners and other callbacks directly to the rendered elements. 
+Taking a few of the things I think people like about modern frontend libraries and removing others. The main thing kept is composable view code, where the same code both creates and updates the DOM. The main thing changed is where state lives. Rather than state held inside components, hair presupposes an app model: ordinary JS objects, maintained and updated over the life of the program in response to user actions or network driven updates. Views are mostly a function of that model. Some of these choices make more sense for games, simulations, tools and other long-lived state, rather than transactional websites with fresh queries per page.
 
-UI state that is more transient than the underlying app state or model should remain the DOM's business where possible, and a "render context" representing the instantiation of a component specifications into the DOM provides a scoped object to handle the live connection between the view specifications and DOM.
+hair.js is a single file module, that can be included in a project without any build step or dependencies.
 
-hair.js is a single file module, that can be included in a project without any required build steps.
+The reasoning behind these choices is in [DESIGN.md](DESIGN.md).
 
-### Goals
+### How it fits together
 
- * Functions as composeable components that generate and update DOM state
- * The same component code can create or update the DOM
- * Direct access to the dom elements is supported by callbacks
- * Update via re-render of components OR via incremental change to DOM elements (ie. perhaps depending whether it is model state that has updated, or UI state)
+ * **The model** holds the logical state, what would be saved or live on a server. Model objects persist (their identity matters), and they **signal** when anything visible through them changes.
+ * **View functions** build a *specification* of the view from the model, using element functions (`h.div`, `h.p`, ...), arrays and other functions. Functions only build the spec. They have no lifecycle or state of their own.
+ * **`compose` and `composeEach`** are the boundaries within the view. Each binds a region of the view to one model object, watches that object, and re-renders the region when it signals. Each region has a **render context** holding its transient view state and references to its DOM elements.
+ * **The DOM** belongs to you as well. hair only writes what the spec changed, so transient state such as focus, scroll position, a partly typed input, or a style set by your own code is left alone.
 
-### Trade offs / non-goals
+### Scope
 
- * Using a convention whereby the identity of state objects matters (ie. works better if updates to the base state or model are incremental updates to a mutable object, rather than a fresh state object returned from a query each time)
- * Not attempting to be a full or perfect implementation of a virtual dom or provide a genuine functional reactive paradigm
- 
-### Efficiency or reducing re-renders
+ * Suited to small applications with a clear model, not large codebases or large data sets.
+ * Updates to the model should be incremental updates to persistent objects, rather than fresh objects each time. Data arriving as new objects (eg. JSON from the network) should be merged into the existing model objects, matching on an id.
+ * Not attempting to be a virtual DOM, or to provide automatic dependency tracking. The model decides what to signal.
 
- * If a component does not directly use the state passed to it to determine its output (perhaps only sub-components of that component use it), then execute that component function directly when including it (rather than add it by reference to be executed later).
- * Prefer to re-use state or model objects across updates to help the library re-use DOM elements, especially lists of objects
- 
 ## Usage
-
-The main usage is to create functions that describe an HTML layout using the functions provided by the library. These functions perform the basic work of creating and updating the DOM.
-
-The output of the function can consist of single elements, or arrays of elements. Whenever elements are provided, they can be provided directly or as function references to create other components. The render process recursively resolves arrays and functions into direct elements.
-
-All element functions allow three arguments in any order, a string for any text content, an object to set properties on the created element, and an array or single child element.
-
- * Objects arguments are assumed to be properties to apply to element eg { class: 'parent', disabled: true }
- * Number or string arguments are assumed to be text content of the element
- * Arrays or any single recognised component spec is assumed to be a child (recursively forming the full component spec)
-
-Event listeners are instantiated as a special kind of child element (hair.listen), and there is special handling for lists of objects (hair.compose).
-
-See the included example TODO list to see examples of all of these in use.
 
 Snippet:
 
 	// bring the hair library in accessed as h.*
 	import * as h from './js/hair.js';
 
-	export default function app(model) {
+	export default function app (model) {
 		return [
 			h.h1(model.name),
-			
+
 			h.div([
-				
-				// add this component in by immediately calling a function to return 
+				// add this component in by immediately calling a function to return its spec
 				itemCount(model.items.length),
-				
-				// use the compose function to request a managed render of a list of objects with a component
-				h.ol({ context_id: 'list' }, h.compose(model.items, (item) => displayItem(model, item))),
+
+				// compose each item in a list with its own region, watching that item for signals
+				h.ol(h.composeEach(model.items, (item) => displayItem(model, item))),
 			]),
-			
-			h.div({ _class: 'add_item_area' }, [
+
+			h.div({ class: 'add-item-area' }, [
 				h.p('Add new items below'),
-				
+
 				// add this component in by providing a function to be called with the same state object
 				addItem,
 			]),
 		];
 	}
 
-### Viewing the example project
+	function addItem (model) {
+		return h.div([
+			// context_id stores a reference to this element in the render context
+			h.input({ context_id: 'new_item' }),
+			h.button('Add', h.listen('click', (context, element, event) => {
+				model.addItem(context.get('new_item').value);
+				context.get('new_item').value = '';
+			})),
+		]);
+	}
+
+	// render the app into a DOM element, the returned context can be used to update or dispose the view
+	const context = h.render(document.getElementById('app'), model, app);
+
+	// later, the model signals when it changes, and the view updates on the next frame
+	model.addItem('feed the cat');		// calls h.signal(this) internally
+
+### Viewing the example projects
 
 Serve the root of repo using any local web server, eg.
 
 	cd hair
 	python3 -m http.server
 
-Open the example folder in your browser
+Open the example folders in your browser
 
 	open http://localhost:8000/example_todo_list/
-
 	open http://localhost:8000/example_quiz/
- 
-### Special property handling
+	open http://localhost:8000/example_tweening/
+	open http://localhost:8000/example_pixi/
 
-During instantiation or update of DOM elements, recognised property names are given special treatment when applied to the element.
+### Running the tests
 
- * context_id, this property sets a reference to the element on the context object, eg. context_id = "textbox" => sets a reference to this element at context.textbox
- * class, this property when given a name, or an array of names, will update the classList of the element to match
- * style, when an object value is applied to this property, the values of that object will be merged into the element style object, rather than replacing it
+The tests use Node's built in test runner, with jsdom as the only development dependency.
 
-*setPropertyHandler* can be used to provide your own property handlers globally for your project.
+	npm install
+	npm test
 
 ## Reference
 
@@ -103,95 +98,117 @@ During instantiation or update of DOM elements, recognised property names are gi
 	[ComponentSpecifications] -|    <render>         <update>         <update>
 	                               RenderPhase      RenderPhase      RenderPhase
 
+### Building specifications
 
-### Component Specifications
+`h.element(type, ...args)` specifies an HTML element, and many common HTML tags have factory functions, eg. `h.div`, `h.p`. Use `h.elementFactory(type)` to make your own. Arguments can be given in any order:
 
-Strings, numbers, arrays and functions are all treated transparently as component specifications. Arrays and functions are iterated or executed recursively to produce explicit component specifications.
+ * A string or number is text content.
+ * An object is the element's properties, eg. `{ class: 'parent', disabled: true }`. Only one property object is allowed.
+ * An array, function or other spec is a child.
 
-Otherwise any object that inherits from ComponentSpecification is treated as specification for creating or updating the DOM during render.
+How values within a spec render:
 
-"element" specifies an HTML element, and many common HTML tags have pre-created factory functions to make this read better, eg. hair.div, hair.p
+ * Strings and numbers render as text, including `0` and `''`.
+ * `null` and `undefined` render nothing.
+ * `true` and `false` are reserved. They don't render as text, but don't rely on them rendering nothing either.
+ * Functions are called with `(state, context)` and their result is rendered in their place.
 
-Some "special" components interact with the render process or the created DOM elements to provide event listeners, time based functionality, or to compose sub-components for objects within the state, or lists of objects, eg. compose, listen, onDelay, or onAttach.
+### compose and composeEach
 
-#### Reuse keys
+ * `h.compose(state, component, reuseKey)` renders `component(state, context)` in its own region. The state is passed whole, whatever its type, and watched for signals.
+ * `h.composeEach(items, component, reuseKey)` creates the same kind of region for each item in a list (or any iterable). Each item is passed to the component, watched for signals, and matched to its existing DOM by identity, so reordered or inserted items reuse their elements.
 
-Many components allow single or multiple "reuse keys" to provided in their spec, these keys can be any value, including strings and objects. When updating an already rendered view, DOM elements will only be reused if reuse keys match, if no reuse keys are provided then DOM elements will be re-used optimistically.
+A region is reused across renders while the same object is composed at the same point. When the object is replaced, the region (and its transient state) is discarded and rebuilt. Pass a `reuseKey` to match on something other than the state object.
 
-### RenderContext
+### Re-rendering
 
-A RenderContext tracks the rendered output of a component in the DOM, allowing the rendering to be updated with reuse. Where sub-components are composed within the rendering they have their own render context. Parameters can be set on the context to allow sharing of information between components at the same level. Sub components can read values inherited from their parent context. Arbitrary events can be broadcast to all components attached to a render context tree.
+ * A render context watches the object it renders. When that object is signalled, the region re-renders on the next animation frame.
+ * A re-render covers everything within that region, including composed children, whether or not the children's own objects signalled. This keeps views that depend on parent state (eg. a selected item) correct.
+ * To keep updates small, signal the most specific object whose view changed. Give frequently changing parts of the model their own object and their own compose boundary, eg. a `model.summary` object holding a total.
+ * Updates requested in the same frame are consolidated. Outer regions update first, and an inner region already updated by its parent doesn't update again.
+ * `context.update(state)` updates a region immediately, and `context.dispose()` removes it.
 
-The RenderPhase tracks objects created or updated during the latest render or update, facilitating reuse and managing a list of current RenderAttachments, anything attached from the rendering process into 
+### Render contexts
 
-By default the render context will "watch" the state or model object provided to it, and if this object is "signalled" it will automatically re-render on the next animation frame.
+Each region has a RenderContext, holding transient view state for that region:
+
+ * `context.set(name, value, signalUpdate = false)` stores a value at this level. Pass `true` to also re-render the region on the next frame.
+ * `context.get(name, defaultValue)` reads a value from this context or the closest outer context that has it.
+ * `h.signal(context)` re-renders the region on the next frame.
+ * `context.broadcast(event, data)` sends an event to all `onBroadcast` listeners in this context and the regions within it.
+ * Initial values can be passed to `h.render(parent, state, component, initialContextValues)`.
+
+### Properties
+
+Element properties are JS properties at all times, never HTML attribute names, eg. `ariaExpanded` not `aria-expanded`, `htmlFor` not `for`, `tabIndex` not `tabindex`.
+
+On each render, properties are compared with the spec from the previous render:
+
+ * Only properties whose spec value changed are written.
+ * Properties no longer in the spec are reset to their default value.
+ * Anything the spec didn't change is left alone, so DOM code can safely manage other properties.
+
+Each property should have one owner: set either by the spec, or by your own DOM code, not both.
+
+Recognised property names are given special treatment:
+
+ * `context_id`: stores a reference to the element as a context value, eg. `context_id: 'textbox'` then `context.get('textbox')`.
+ * `key`: a reuse key for the element. By default elements within a region are matched by position. With a key they are matched by key, so their DOM state follows them when their position in the spec changes.
+ * `class`: a class name, space separated names, or an array of names (falsy entries are ignored). Only classes from the previous spec are removed, so classes added by DOM code stay.
+ * `style`: an object merged into `element.style` (including `--custom` properties), or a string replacing the whole inline style.
+ * `dataset`: an object merged into `element.dataset`, eg. `dataset: { state: 'open' }` gives `data-state="open"`.
+ * `attributes`: an object of HTML attributes, for anything without a writable JS property (SVG, `list`, ARIA element references, custom elements). `null` or `false` removes an attribute, and `true` sets it empty.
+
+`h.setPropertyHandler(name, handler)` adds your own handler. Handlers are called on every render with `(context, element, key, value, previousValue)`, where `value` is undefined when the property has been removed from the spec.
+
+### Listeners and lifecycle
+
+These are added as children of an element, and given `(context, element)` where element is that parent element.
+
+ * `listen(event, listener)` a DOM event listener, called with `(context, element, event)`.
+ * `onPrepare(listener)` called during render, when first created.
+ * `onAttach(listener)` called after the render that first creates it.
+ * `onUpdate(listener)` called after every render.
+ * `onRemove(listener)` called when removed.
+ * `onBroadcast(event, listener)` called with `(context, element, data)` for broadcast events.
+ * `onDelay(seconds, listener)`, `onTimer(seconds, listener)`, `onFrame(listener)` timers that are cancelled when removed.
+ * `onContext(configurator)` called once with the context listener, to set `onAttach`, `onUpdate`, `onRemove` and `onBroadcast` together, and `addDisposable` for anything to be disposed on removal.
+
+Listeners are set up once, when first created, but always call the listener from the latest render. Optional reuse keys can be passed after the listener, to only reuse a listener with matching keys.
 
 ### Signals
- 
- * watch
- * signal
- * removeWatcher
- 
-Watchers are held by weak reference only, and disposed objects are ignored.
+
+ * `watch(object, action, owner)`
+ * `signal(object, ...args)`
+ * `removeWatcher(ownerOrWatcher)`
+
+Watched objects are held weakly. Watchers (and their owners) are held for as long as the watched object, or until removed. Watchers of disposed owners are ignored. An exception in one watcher is reported, and does not stop the others.
 
 ### Timers
 
- * delay (seconds, action, owner)
- * timer (seconds, action, owner)
- * onNextFrame (action, owner)
- * onEveryFrame (action, owner)
- * cancel (owner)
- * await wait(seconds or condition)
- * schedule ((fiber) => {})
- 
-Timer events are held by weak reference only, and disposed objects are ignored.
+ * `delay(seconds, action, owner)`
+ * `timer(seconds, action, owner)`
+ * `onNextFrame(action, owner)`
+ * `onEveryFrame(action, owner)`
+ * `onAnyFrame(action, owner)` runs on any frame that happens, without requesting frames
+ * `cancel(owner)`
+ * `await wait(secondsOrCondition, owner)`
+ * `schedule((fiber) => {}, owner)`
+
+All timers run on `requestAnimationFrame`, and frames are only requested when something is scheduled. Actions due in the same frame run in the order they were requested, and an exception in one is reported without stopping the others. Note that browsers pause animation frames in background tabs, so timers and signalled updates also pause until the tab is visible.
+
+Actions with a disposed owner are ignored.
 
 ### Disposal
 
- * markObjectAsDisposed (obj)
- * isObjectDisposed (obj)
+ * `markObjectAsDisposed(obj)`
+ * `isObjectDisposed(obj)`
+
+### Optional modules
+
+ * `hair.tween.js` tweening any object property, and a transform wrapper for DOM elements.
+ * `hair.pixi.js` integrating pixi.js views within the render context tree.
 
 ## License
 
-MIT License, Copyright (c) 2025 Samuel Baird
-
-## Status
-
-Done
-
- * Determining the basic approach, include the interface for creating elements and context object related to DOM instantiation
- * First pass basic recursive render 
- * A centrally managed frame timer to request delayed frame updates in a consolidated manner
- * A globally available signal to trigger re-render on updates to model/state object
- * Initial rendering of HTML elements from a component tree
- * An approach to event listening and access to DOM elements
- * DOM updates without a full re-render
- * Property handling for different properties that need special treatment
- * Consider supplying an explicit list of dependency key objects when assigning callbacks (or more things?) to explicitly determine when reuse is appropriate
- * A typical TODO list as a working example
- * Ensure correct ordering of DOM elements when partially re-using content
- * Can we do more efficient moving through tracking the insert before target rather than the index
- * Dispose cycle through context tree
- * Information sharing through the context tree
- * Listening to component lifecycle events or arbitrary event dispatch
- * Recurring timer or set number of repeats support?
- * Add additional examples
- * Property tweening...
- * More documentation, overview and how it hangs together
- * Experiment, break code into multiple modules/areas of concern, making tweens optional
- * Add a tween/transform example
- * Allow watchers for animation frames (ie. that can trigger pre or post, without causing animation frames to be requested) onAnyFrame
- * Maybe add an optional "phase" value to signal watchers
- * PIXI integration
- * Consider an onPrepare, similar to onAttach but run before the render phase commits with all children
-
-In progress
-
- 
-To do
-
- * Consider a scoped, composable way to define CSS classes or defaults alongside the HTML elements (without needing to supply naming)
- * Add JSDoc markup throughout
- * More efficient handling of long lists or large components (multi key dictionary instead of array for quicker look up in RenderPhase.find)
- * Consider a broadcastUp that broadcasts events to parents instead of children
-
+MIT License, Copyright (c) 2026 Samuel Baird
