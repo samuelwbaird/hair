@@ -1,4 +1,4 @@
-import * as h from '../../hair.js';
+import { signal } from '../../hair.js';
 
 export class GameModel {
 	constructor () {
@@ -7,7 +7,7 @@ export class GameModel {
 
 	actionCreateNewCharacter () {
 		this.character = new CharacterModel();
-		h.signal(this);
+		signal(this);
 	}
 }
 

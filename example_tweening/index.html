@@ -39,8 +39,10 @@
 </div>
 <script type="module" charset="UTF-8">
 	// use the library
-	import * as h from '../hair.js';
+	import { render, compose, composeEach, onAttach, listen, signal, elements } from '../hair.js';
 	import * as ht from '../hair.tween.js';
+	
+	const { div, button } = elements
 	
 	// -- our model -----------------------------------------------
 	// really just a list of "box" objects with no important qualities
@@ -53,7 +55,7 @@
 		
 		addNewBox () {
 			this.boxes.push({ startingX: (Math.random() * 280) });
-			h.signal(this.boxes);
+			signal(this.boxes);
 			
 			// we can tween any object property, let's randomly tween the progress to a different value
 			ht.cancelTweensOf(this.progressBar);
@@ -70,23 +72,23 @@
 		
 		set progress (value) {
 			this.#progress  = value;
-			h.signal(this);
+			signal(this);
 		}		
 	}
 	
 	// -- our view -----------------------------------------------
 	
 	function appView (model) {
-		return h.div([
-			h.button('Drop Another Box', { style: { marginBottom: '4px' }}, h.listen('click', () => { model.addNewBox(); })),
-			h.div({ class: 'drop-area' }, h.composeEach(model.boxes, boxView)),
-			h.compose(model.progressBar, progressView),
+		return div([
+			button('Drop Another Box', { style: { marginBottom: '4px' }}, listen('click', () => { model.addNewBox(); })),
+			div({ class: 'drop-area' }, composeEach(model.boxes, boxView)),
+			compose(model.progressBar, progressView),
 		]);
 	}
 	
 	// a view for the box that tweens itself when first rendered
 	function boxView (box) {
-		return h.div({ class: 'box' }, h.onAttach(async (context, element) => {
+		return div({ class: 'box' }, onAttach(async (context, element) => {
 			// wrap the DOM element in a transform object that provides simple properties
 			// to update x, y, scale and rotation of an absolutely positioned DOM element
 			const boxTransform = ht.transform(element);
@@ -110,15 +112,15 @@
 	}
 	
 	function progressView (model) {
-		return h.div({ style: { height: '8px', width: '320px', backgroundColor: '#333', marginTop: '4px' }}, [
-			h.div({ style: { height: '8px', width: (320 * model.progress) + 'px', backgroundColor: '#888' }}),
+		return div({ style: { height: '8px', width: '320px', backgroundColor: '#333', marginTop: '4px' }}, [
+			div({ style: { height: '8px', width: (320 * model.progress) + 'px', backgroundColor: '#888' }}),
 		]);
 	}
 		
 	// -- render the app in place ---------------------------------
 	const parent = document.getElementById('app');
 	const model = new Model();
-	const context = h.render(parent, model, appView);
+	const context = render(parent, model, appView);
 </script>
 </body>
 </html>

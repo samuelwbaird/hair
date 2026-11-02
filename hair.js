@@ -249,44 +249,12 @@ export function elementFactory (type) {
 	}
 }
 
-// create some common element tags for convenience
-export const div = elementFactory('div');
+export const elements = new Proxy({}, {
+	get (_, type) {
+		return elementFactory(type);
+	}
+});
 
-export const h1 = elementFactory('h1');
-export const h2 = elementFactory('h2');
-export const h3 = elementFactory('h3');
-export const h4 = elementFactory('h4');
-export const h5 = elementFactory('h5');
-
-export const p = elementFactory('p');
-export const span = elementFactory('span');
-export const b = elementFactory('b');
-export const i = elementFactory('i');
-export const em = elementFactory('em');
-export const small = elementFactory('small');
-export const u = elementFactory('u');
-export const strike = elementFactory('strike');
-export const strong = elementFactory('strong');
-export const br = elementFactory('br');
-export const hr = elementFactory('hr');
-
-export const a = elementFactory('a');
-export const img = elementFactory('img');
-
-export const ol = elementFactory('ol');
-export const ul = elementFactory('ul');
-export const li = elementFactory('li');
-
-export const form = elementFactory('form');
-export const option = elementFactory('option');
-export const button = elementFactory('button');
-export const input = elementFactory('input');
-export const label = elementFactory('label');
-
-export const table = elementFactory('table');
-export const tr = elementFactory('tr');
-export const th = elementFactory('th');
-export const td = elementFactory('td');
 
 // -- Component Specification ---------------------------------------
 // components are presented as text, a function, an array, _or_ as one of these known objects

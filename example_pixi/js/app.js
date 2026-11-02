@@ -1,10 +1,12 @@
 // reference the hair library to hook into the signal/watch mechanism
-import * as h from '../../hair.js';
+import { render, compose, signal, listen, elements } from '../../hair.js';
 import * as ht from '../../hair.tween.js';
 import * as hp from '../../hair.pixi.js';
 
 import * as model from './model.js';
 import * as scene from './scene.js';
+
+const { div, button, canvas } = elements;
 
 // show an HTML loading scene while loading assets, (async load function)
 // then show a CharacterView, with an animated named character
@@ -16,7 +18,7 @@ export async function loadAssetsAndLaunch (parent) {
 	let app = new App();
 	app.setView(loadingView);
 	
-	const context = h.render(parent, app, appView);
+	const context = render(parent, app, appView);
 	context.set('app', app);
 
 	// load assets via pixi
@@ -25,7 +27,7 @@ export async function loadAssetsAndLaunch (parent) {
 	sprites.baseTexture.scaleMode = PIXI.SCALE_MODES.NEAREST;
 		
 	const game = new model.GameModel();
-	app.setView(() => h.compose(game, () => { return characterView(game); }));
+	app.setView(() => compose(game, () => { return characterView(game); }));
 }
 
 class App {
@@ -36,7 +38,7 @@ class App {
 		
 	setView (view) {
 		this.currentView = view;
-		h.signal(this);
+		signal(this);
 	}	
 }
 
@@ -44,9 +46,9 @@ class App {
 function appView (app) {
 	return [
 		// a layer for 2D canvas
-		h.div({ class: 'layer' }, [
-			h.div({ class: 'scene' }, [
-				h.element('canvas', hp.pixi_canvas((c) => {
+		div({ class: 'layer' }, [
+			div({ class: 'scene' }, [
+				canvas(hp.pixi_canvas((c) => {
 					// set logical sizing of the canvas when its created
 					c.setLogicalSize(240, 480, 540);
 					// enable touch events captured from this dom element
@@ -55,36 +57,36 @@ function appView (app) {
 			]),
 		]),
 		// a layer for dom elements
-		h.div({ class: 'layer' }, [
+		div({ class: 'layer' }, [
 			// use the context to attach touch events to a specific created element
 			// h.onAttach((context, element) => {
 			// 	context.get('pixi_canvas').enableTouchEvents(element);
 			// }),
-			h.compose(app, app.currentView),
+			compose(app, app.currentView),
 		]),
 	];
 }
 
 function loadingView (model, context) {
-	return h.div({ class: 'loading-ui' }, [
+	return div({ class: 'loading-ui' }, [
 		hp.pixi_view([
 			{ rect: 0x777777, x: 0, y: 0, width: 540, height: 480 },
 			{ x: 10, y: 10, text: 'PIXI.js', align: 'left' },
 		]),
-		h.div(),
-		h.div('Loading'),
+		div(),
+		div('Loading'),
 	]);
 }
 
 function characterView(model) {
 	return [
 		hp.pixi_view(() => { return new scene.CharacterScene(model.character); }, model.character),
-		h.div({ class: 'character-ui' }, [
-			h.div(), //{ style: { pointerEvents: 'auto' } }),
-			h.div({ class: 'slug' }, model.character.name, noClickThrough),
-			h.div({ class: 'slug' }, model.character.role.name, noClickThrough),
-			h.div([
-				h.button('Re-roll', h.listen('click', () => {
+		div({ class: 'character-ui' }, [
+			div(), //{ style: { pointerEvents: 'auto' } }),
+			div({ class: 'slug' }, model.character.name, noClickThrough),
+			div({ class: 'slug' }, model.character.role.name, noClickThrough),
+			div([
+				button('Re-roll', listen('click', () => {
 					model.actionCreateNewCharacter();
 				})),
 				noClickThrough,
@@ -95,7 +97,7 @@ function characterView(model) {
 
 // trap and stop propagation of click events on this element
 function noClickThrough () {
-	return h.listen('pointerdown', (context, element, e) => {
+	return listen('pointerdown', (context, element, e) => {
 		e.stopPropagation();
 	});
 }

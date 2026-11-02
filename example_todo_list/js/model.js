@@ -1,5 +1,5 @@
 // reference the hair library to hook into the signal/watch mechanism
-import * as h from '../../hair.js';
+import{ signal } from '../../hair.js';
 
 /** A simple example model for a TODO list */
 export default class TodoModel {
@@ -11,7 +11,7 @@ export default class TodoModel {
 	addItem (text) {
 		const item = new TodoItem(text, false);
 		this.items.push(item);
-		h.signal(this);
+		signal(this);
 		return item;	
 	}
 	
@@ -19,7 +19,7 @@ export default class TodoModel {
 		const index = this.items.indexOf(item);
 		if (index >= 0) {
 			this.items.splice(index, 1);
-			h.signal(this);
+			signal(this);
 		}
 	}
 	
@@ -34,7 +34,7 @@ export default class TodoModel {
 				return a.text.toLowerCase().localeCompare(b.text.toLowerCase());
 			}
 		});
-		h.signal(this);
+		signal(this);
 	}
 }
 
@@ -47,7 +47,7 @@ class TodoItem {
 	
 	setCompleted () {
 		this.completed = true;
-		h.signal(this);
+		signal(this);
 	}
 }
 

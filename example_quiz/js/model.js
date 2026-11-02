@@ -1,5 +1,5 @@
 // reference the hair library to hook into the signal/watch mechanism
-import * as h from '../../hair.js';
+import { signal, delay } from '../../hair.js';
 
 export class QuizModel {
 
@@ -31,7 +31,7 @@ export class QuizModel {
 		if (!this.currentQuestion && !this.results) {
 			this.results = new QuizResults(this);
 		}
-		h.signal(this);
+		signal(this);
 	}
 		
 }
@@ -68,9 +68,9 @@ class QuizQuestion {
 		
 		this.hasBeenAnswered = true;
 		this.selectedAnswer = answer;
-		h.signal(this);
+		signal(this);
 		
-		h.delay(2, () => {
+		delay(2, () => {
 			this.quiz.queueNextQuestion();
 		});
 	}
@@ -88,7 +88,7 @@ class QuizTimer {
 	constructor (seconds, onComplete) {
 		this.time = seconds;
 		this.due = (Date.now() + ((seconds + 1) * 1000));
-		h.delay(seconds, onComplete);
+		delay(seconds, onComplete);
 	}
 	
 	secondsRemaining () {

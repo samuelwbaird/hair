@@ -1,16 +1,18 @@
 // reference the hair library to access the provided functions to generate elements
-import * as h from '../../hair.js';
+import { compose, composeEach, onBroadcast, onDelay, onFrame, onContext, listen, elements } from '../../hair.js';
+
+const { h1, h2, div, p, button, progress } = elements;
 
 // -- main menu ------------------------------------------
 
 export function mainMenuView (app) {
 	return [
-		h.h1('Example Quiz App'),
-		h.div({ class: 'button-holder' }, h.composeEach(app.levels, mainMenuButton)),
-		h.p('This app presents simple example quizzes using maths questions with multichoice answers, as an example of structuring multiple views and features like timers.'),
+		h1('Example Quiz App'),
+		div({ class: 'button-holder' }, composeEach(app.levels, mainMenuButton)),
+		p('This app presents simple example quizzes using maths questions with multichoice answers, as an example of structuring multiple views and features like timers.'),
 				
 		// broadcast example
-		h.div({ class: 'fade-cover' }, h.onBroadcast('fadeout', (context, element) => {
+		div({ class: 'fade-cover' }, onBroadcast('fadeout', (context, element) => {
 			// block interaction and fade to white over the top
 			element.style.pointerEvents = 'all';
 			element.style.opacity = 1;
@@ -19,26 +21,26 @@ export function mainMenuView (app) {
 }
 
 function mainMenuButton (level) {
-	return h.button(level.label, { class: 'main' }, h.listen('click', level.action));
+	return button(level.label, { class: 'main' }, listen('click', level.action));
 }
 
 // -- quiz view ------------------------------------------
 
 export function quizView (quiz) {
 	return [
-		h.h1(quiz.name),
+		h1(quiz.name),
 		// show the current question is there is one
-		h.compose(quiz.currentQuestion, (question) => questionView(quiz, question)),
+		compose(quiz.currentQuestion, (question) => questionView(quiz, question)),
 		// show the results if they are ready
-		h.compose(quiz.results, resultsOverlay),
+		compose(quiz.results, resultsOverlay),
 	];
 }
 
 function questionView (quiz, question) {
 	return [
 		questionNumber(quiz, question),
-		h.div({ class: 'question-area' }, [
-			h.h2(question.text),
+		div({ class: 'question-area' }, [
+			h2(question.text),
 			question.hasBeenAnswered ? questionAnswered(quiz, question) : questionInPlay(quiz, question)
 		]),
 	];
@@ -47,25 +49,25 @@ function questionView (quiz, question) {
 function questionInPlay (quiz, question) {
 	let delay = 0;
 	return [
-		h.div({ class: 'answer-holder' }, h.composeEach(question.answers, (answer) => {
-			return h.button(answer.text, { class: 'answer', style: { opacity: 0 } }, [
-				h.listen('click', () => {
+		div({ class: 'answer-holder' }, composeEach(question.answers, (answer) => {
+			return button(answer.text, { class: 'answer', style: { opacity: 0 } }, [
+				listen('click', () => {
 					question.selectAnswer(answer);
 				}),
 				// staggered appearance for each button
-				h.onDelay((++delay * 0.1), (context, element) => {
+				onDelay((++delay * 0.1), (context, element) => {
 					element.style.opacity = 1;
 				}),
 			]);
 		})),
-		h.compose(question.timer, timerView),
+		compose(question.timer, timerView),
 	];	
 }
 
 function questionAnswered (quiz, question) {
 	return [
-		h.div({ class: 'answer-holder' }, h.composeEach(question.answers, (answer) => {
-			return h.button(answer.text, {
+		div({ class: 'answer-holder' }, composeEach(question.answers, (answer) => {
+			return button(answer.text, {
 				// show which button was selected and which was correct
 				class: ['answer', (answer.correct ? 'correct' : '')], 
 				disabled: true,
@@ -75,7 +77,7 @@ function questionAnswered (quiz, question) {
 			});
 		})),
 		// fade out
-		h.onDelay(1.5, (context, element) => {
+		onDelay(1.5, (context, element) => {
 			element.style.opacity = 0;
 		}),
 	];
@@ -84,12 +86,12 @@ function questionAnswered (quiz, question) {
 function questionNumber (quiz, question) {
 	const total = quiz.questions.length;
 	const index = (total - quiz.questions.indexOf(question));
-	return h.p('Question ' + index + '/' + total, { class: 'question-number' });
+	return p('Question ' + index + '/' + total, { class: 'question-number' });
 }
 
 function timerView (timer) {
-	return h.div({ class: 'timer-holder' }, [
-		h.element('progress', { context_id: 'progress', max: 100, value: 100 }, h.onFrame((context, element) => {
+	return div({ class: 'timer-holder' }, [
+		progress({ context_id: 'progress', max: 100, value: 100 }, onFrame((context, element) => {
 			context.get('progress').value = timer.percentRemaining();
 		})),
 	]);
@@ -98,14 +100,14 @@ function timerView (timer) {
 // -- results -------------------------------------------
 
 function resultsOverlay (results) {
-	return h.div({ class: 'results-holder' }, [
-		h.p('You got', delayedAppearance(0.25)),
-		h.p(results.correct + ' out of ' + results.total, { class: 'results' }, delayedAppearance(0.5)),
-		h.button('OK', { class: 'answer' }, [
-			h.listen('click', (context) => { context.get('app').navMainMenu(); }),
+	return div({ class: 'results-holder' }, [
+		p('You got', delayedAppearance(0.25)),
+		p(results.correct + ' out of ' + results.total, { class: 'results' }, delayedAppearance(0.5)),
+		button('OK', { class: 'answer' }, [
+			listen('click', (context) => { context.get('app').navMainMenu(); }),
 			delayedAppearance(1.5),
 		]),
-		h.div({ class: 'fade-cover' }, h.onBroadcast('fadeout', (context, element) => {
+		div({ class: 'fade-cover' }, onBroadcast('fadeout', (context, element) => {
 			// block interaction and fade to white over the top
 			element.style.pointerEvents = 'all';
 			element.style.opacity = 1;
@@ -115,11 +117,11 @@ function resultsOverlay (results) {
 
 // give a delayed appearance functionality to an element
 function delayedAppearance(delay) {
-	return h.onContext((contextListener) => {
+	return onContext((contextListener) => {
 		let cancelToken = null;
 		contextListener.onAttach = (context, element) => {
 			element.style.opacity = 0;
-			cancelToken = h.delay(delay, () => {
+			cancelToken = delay(delay, () => {
 				element.style.opacity = 1;
 			}, contextListener);
 		}

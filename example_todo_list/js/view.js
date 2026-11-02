@@ -1,17 +1,19 @@
 // reference the hair library to access the provided functions to generate elements
-import * as h from '../../hair.js';
+import { compose, composeEach, listen, elements } from '../../hair.js';
+
+const { h1, div, p, span, ol, li, button, input } = elements;
 
 /** top level view, render the app as a title, list, and "add new" component */
 export default function app (model) {
 	return [
-		h.h1(model.name),
-		h.div([
-			h.ol(h.composeEach(model.items, (item) => displayItem(model, item))),
+		h1(model.name),
+		div([
+			ol(composeEach(model.items, (item) => displayItem(model, item))),
 			itemCount(model.items.length),
 			sortButton,
 		]),
-		h.div([
-			h.p('Add new items below'),
+		div([
+			p('Add new items below'),
 			addItem,
 		]),
 	];
@@ -20,46 +22,46 @@ export default function app (model) {
 /** small component, executed inline to render the list count */
 function itemCount (count) {
 	if (count == 0) {
-		return h.p('Add some items to your TODO list');
+		return p('Add some items to your TODO list');
 	} else if (count == 1) {
-		return h.p('1 item');			
+		return p('1 item');			
 	} else {
-		return h.p(count + ' items');
+		return p(count + ' items');
 	}
 }
 
 function sortButton (model) {
 	// sort button to test out ordering of re-used elements
 	return [
-		h.button('Sort Items', { class: ['btn', 'btn-sort'] }, h.listen('click', () => { model.sortItems(); })),
-		h.div({ style: { display: 'inline', marginRight: '10px' }}),
-		h.span('(alphabetical sort, with completed items last)'),
+		button('Sort Items', { class: ['btn', 'btn-sort'] }, listen('click', () => { model.sortItems(); })),
+		div({ style: { display: 'inline', marginRight: '10px' }}),
+		span('(alphabetical sort, with completed items last)'),
 	];
 }
 
 /** component to render each item in the list in its own view */
 function displayItem (model, item) {
-	return h.div([
-		h.input({ type: 'checkbox', checked: item.completed, disabled: item.completed }, [
-			h.listen('change', (context, element) => { 
+	return div([
+		input({ type: 'checkbox', checked: item.completed, disabled: item.completed }, [
+			listen('change', (context, element) => { 
 				if (element.checked) {
 					item.setCompleted();
 				}
 			}),
 		]),
-		h.div({ style: { display: 'inline', marginRight: '5px' }}),
-		h.span(item.text, { class: 'txt-todo', style: { textDecoration: (item.completed ? 'line-through' : '') }}),
-		h.div({ style: { display: 'inline', marginRight: '5px' }}),
-		h.button('Delete', { class: ['btn', 'btn-delete'] }, h.listen('click', () => { model.removeItem(item); })),
+		div({ style: { display: 'inline', marginRight: '5px' }}),
+		span(item.text, { class: 'txt-todo', style: { textDecoration: (item.completed ? 'line-through' : '') }}),
+		div({ style: { display: 'inline', marginRight: '5px' }}),
+		button('Delete', { class: ['btn', 'btn-delete'] }, listen('click', () => { model.removeItem(item); })),
 	]);
 }
 
 /** component to render the UI to add new items */
 function addItem (model) {
-	return h.div([
-		h.input({ context_id: 'txt_input' }),
-		h.div({ style: { display: 'inline', marginRight: '10px' }}),
-		h.button('Add', { class: ['btn', 'btn-add'] }, h.listen('click', (context, element) => {
+	return div([
+		input({ context_id: 'txt_input' }),
+		div({ style: { display: 'inline', marginRight: '10px' }}),
+		button('Add', { class: ['btn', 'btn-add'] }, listen('click', (context, element) => {
 			// use a reference to a another element within this same context, using the special context_id property
 			model.addItem(context.get('txt_input').value);
 			context.get('txt_input').value = '';
