@@ -83,6 +83,7 @@ Open the example folders in your browser
 
 	open http://localhost:8000/example_todo_list/
 	open http://localhost:8000/example_quiz/
+	open http://localhost:8000/example_forms/
 	open http://localhost:8000/example_tweening/
 	open http://localhost:8000/example_pixi/
 
@@ -150,6 +151,8 @@ Each region has a RenderContext, holding transient view state for that region:
  * `signal(context)` re-renders the region on the next frame.
  * `context.broadcast(event, data)` sends an event to all `onBroadcast` listeners in this context and the regions within it.
  * Initial values can be passed to `render(parent, state, component, initialContextValues)`.
+
+Inner regions can reach outer ones without any extra mechanism, either through the model (call a model method, and the model signals), or through the context. An outer region can set a callback, eg. `context.set('onSelect', (item) => { ... })`, and any region within it can call `context.get('onSelect')(item)`.
 
 ### Properties
 
@@ -233,8 +236,32 @@ Actions with a disposed owner are ignored.
 
 ### Optional modules
 
+ * `hair.forms.js` two way binding between a form's controls and an object.
  * `hair.tween.js` tweening any object property, and a transform wrapper for DOM elements.
  * `hair.pixi.js` integrating pixi.js views within the render context tree.
+
+### Forms
+
+`bind(object, { signal = false })` from `hair.forms.js` is added as a child of a form element, and binds the form's controls to properties of the object by name:
+
+	import { bind } from './js/hair.forms.js';
+
+	form(bind(draft), [
+		input({ name: 'name' }),
+		input({ name: 'age', type: 'number' }),
+		input({ name: 'newsletter', type: 'checkbox' }),
+		button('Save', { type: 'submit' }),
+		h.listen('submit', (context, element, event) => { ... }),
+	])
+
+ * Only properties that already exist on the object are bound.
+ * After each render, values that changed on the object are written to their controls. A control with focus is written on a later render.
+ * When the user changes a control, its value is written to the object. With `{ signal: true }` the object is also signalled, so views of it re-render as the user types, eg. to show live validation.
+ * Values are strings, numbers (or `null`) for number and range inputs, booleans for checkboxes, and the checked value for radio buttons. Buttons, file inputs and multiple selects are not bound.
+ * Bind owns the values of the controls it binds, so don't also set `value` or `checked` in the spec.
+ * A new object passed to `bind` creates a new binding, eg. to reset a form.
+
+A useful pattern is to bind a draft object, held as transient view state (eg. in the context), and copy it into the model when the form is submitted. The forms example shows a form that signals for live validation, and one that doesn't need to.
 
 ## License
 

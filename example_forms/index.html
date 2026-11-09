@@ -1,0 +1,29 @@
+<html>
+<head>
+	<title>hair.js forms example</title>
+	<link href="css/style.css" rel="stylesheet">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div id="app">
+</div>
+<script type="module" charset="UTF-8">
+	// use the library
+	import * as h from '../hair.js';
+
+	// forms bind their controls to draft objects with hair.forms.js
+	// one form signals as the user types to show live validation, the other doesn't need to
+	// both copy their draft into the model when they are submitted
+	import AccountsModel from './js/model.js';
+	import appView from './js/view.js';
+
+	// create the data model for the app
+	const model = new AccountsModel();
+	model.addAccount({ name: 'Ada', email: 'ada@example.com', age: 36, plan: 'pro', newsletter: true });
+	model.addAccount({ name: 'Grace', email: 'grace@example.com', age: 45, plan: 'free', newsletter: false });
+
+	// -- render the app in place ---------------------------------
+	h.render(document.getElementById('app'), model, appView);
+</script>
+</body>
+</html>

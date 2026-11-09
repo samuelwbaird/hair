@@ -1,0 +1,75 @@
+body {
+    font-family: Georgia, Palatino, serif;
+    margin: 40px auto;
+    max-width: 650px;
+    line-height: 1.6;
+    font-size: 18px;
+    color: #444;
+	padding: 0 10px;
+}
+
+h1, h2, h3 {
+    line-height: 1.2
+}
+
+p.note {
+	font-size: 15px;
+	color: #777;
+}
+
+ul.accounts {
+	padding: 0;
+	list-style: none;
+}
+
+ul.accounts li {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	border-bottom: 1px solid #ddd;
+	padding: 4px 0;
+}
+
+ul.accounts .name {
+	min-width: 120px;
+	font-weight: bold;
+}
+
+ul.accounts .email {
+	flex: 1;
+}
+
+.panel {
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	padding: 4px 16px 16px 16px;
+	margin-top: 24px;
+}
+
+form label {
+	display: block;
+	margin: 6px 0;
+}
+
+form input[type=text], form input[type=email], form input[type=number], form input:not([type]) {
+	display: block;
+	font-size: 16px;
+	padding: 4px;
+	width: 280px;
+}
+
+.choices label {
+	display: inline-block;
+	margin-right: 16px;
+}
+
+ul.problems {
+	color: #a33;
+	font-size: 15px;
+	min-height: 1em;
+}
+
+form button {
+	font-size: 16px;
+	margin-right: 8px;
+}

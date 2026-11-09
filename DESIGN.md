@@ -18,7 +18,7 @@ When a choice comes up, prefer the one that is simple to explain and keeps that 
 
  * hair is a single project. The separate hair-mini project is retired.
  * `hair.js` consolidates core and HTML rendering into one file, so it also serves as the single-file, no-build version.
- * Optional integrations (tween, PIXI) stay as separate modules that import `hair.js`.
+ * Optional modules (forms, tween, PIXI) stay separate, and import `hair.js`.
 
 ## Layers of state
 
@@ -91,6 +91,17 @@ Each compose region's RenderContext holds that region's transient state:
  * **A context can be signalled.** Signalling a context re-renders its region on the next frame, with the same consolidation as model signals. The view is then explicitly a function of (state, context), scoped to the compose boundary.
  * **`context.set(name, value, signal = false)`.** Setting a value does not signal by default. Most values are set during or just after a render, and signalling there would be circular or cause a second render. Pass `true` when the change should update the view, eg. `context.set('tab', name, true)`.
  * Simple transient state can instead stay entirely on the DOM, managed by listeners, with no re-render.
+ * **Inner regions reach outer ones through the model or the context**, not through events going up. An outer region sets a callback with `context.set`, and inner regions call it with `context.get`. There is deliberately no `broadcastUp`: it would be a third way to do the same thing, and events going up are hard to follow.
+
+## Forms
+
+Form binding is an optional module, `hair.forms.js`, because it's a convenience built on context listeners rather than part of rendering:
+
+ * **`bind(object)` owns the values of the controls it binds.** That follows the one-owner rule, so the spec doesn't also set `value` or `checked`. Like the property handlers, it writes a control only when the object's value has changed since it was last written or read.
+ * **Bind a draft, not the model.** A form's values are transient view state until they are submitted. Binding a draft object, and copying it into the model on submit, keeps partial edits out of the model.
+ * **Signalling is a choice per form.** With `{ signal: true }`, every change re-renders the views of the draft, for live validation or previews. Without it, nothing re-renders while the user types.
+ * **A new object is a new binding.** The object is the binding's key, so giving `bind` a fresh draft resets the form.
+ * Deliberately limited to single-value controls. Multiple selects, file inputs and groups of checkboxes sharing a name are left to listeners.
 
 ## DOM ownership
 
