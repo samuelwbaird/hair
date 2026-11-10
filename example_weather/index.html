@@ -1,0 +1,30 @@
+<html>
+<head>
+	<title>hair.js merge example</title>
+	<link href="css/style.css" rel="stylesheet">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<div id="app">
+</div>
+<script type="module" charset="UTF-8">
+	// use the library
+	import * as h from '../hair.js';
+
+	// a fake server responds with fresh data, which is merged into the model with hair.model.js
+	// the model objects keep their identity, so only the changed parts of the view update
+	import FakeWeatherServer from './js/server.js';
+	import WeatherModel from './js/model.js';
+	import appView from './js/view.js';
+
+	const model = new WeatherModel(new FakeWeatherServer());
+
+	// -- render the app in place ---------------------------------
+	h.render(document.getElementById('app'), model, appView);
+
+	// update from the server now, then every two seconds
+	model.refresh();
+	h.timer(2, () => { model.refresh(); });
+</script>
+</body>
+</html>

@@ -20,7 +20,7 @@ The reasoning behind these choices is in [DESIGN.md](DESIGN.md).
 ### Scope
 
  * Suited to small applications with a clear model, not large codebases or large data sets.
- * Updates to the model should be incremental updates to persistent objects, rather than fresh objects each time. Data arriving as new objects (eg. JSON from the network) should be merged into the existing model objects, matching on an id.
+ * Updates to the model should be incremental updates to persistent objects, rather than fresh objects each time. Data arriving as new objects (eg. JSON from the network) should be merged into the existing model objects, matching on an id, eg. with `merge` from `hair.model.js`.
  * Not attempting to be a virtual DOM, or to provide automatic dependency tracking. The model decides what to signal.
 
 ## Usage
@@ -84,6 +84,7 @@ Open the example folders in your browser
 	open http://localhost:8000/example_todo_list/
 	open http://localhost:8000/example_quiz/
 	open http://localhost:8000/example_forms/
+	open http://localhost:8000/example_weather/
 	open http://localhost:8000/example_tweening/
 	open http://localhost:8000/example_pixi/
 
@@ -236,6 +237,7 @@ Actions with a disposed owner are ignored.
 
 ### Optional modules
 
+ * `hair.model.js` merging fresh data into existing model objects.
  * `hair.forms.js` two way binding between a form's controls and an object.
  * `hair.tween.js` tweening any object property, and a transform wrapper for DOM elements.
  * `hair.pixi.js` integrating pixi.js views within the render context tree.
@@ -262,6 +264,29 @@ Actions with a disposed owner are ignored.
  * A new object passed to `bind` creates a new binding, eg. to reset a form.
 
 A useful pattern is to bind a draft object, held as transient view state (eg. in the context), and copy it into the model when the form is submitted. The forms example shows a form that signals for live validation, and one that doesn't need to.
+
+### Merging data
+
+`merge(target, source, options)` from `hair.model.js` merges fresh data (eg. JSON from a server) into existing model objects, keeping their identity so views stay attached to them:
+
+	import * as hm from './js/hair.model.js';
+
+	const changed = hm.merge(model, await response.json(), {
+		arrays: 'match',
+		create: (data, key) => (key == 'cities') ? new City(data) : data,
+	});
+
+ * Each property of the source is merged into the target. Properties missing from the source are left alone, and values are assigned only if they differ.
+ * Nested objects are merged into the existing object. An object with nothing to merge into is made with `create(data, key, parent)`, which receives the source data and is responsible for its whole subtree.
+ * Arrays keep their identity and are updated in place. Arrays of objects that all have ids are matched by id:
+   * `arrays: 'merge'` (the default) merges matched items in place, adds new items at the end, and removes nothing. This suits pages of results, or partial updates.
+   * `arrays: 'match'` leaves the array with exactly the source's items, in the source's order. Matched items are still reused. This suits complete lists.
+ * Other arrays (values, or objects without ids) are replaced as a whole when they differ.
+ * `id` is the property name used to match objects, `'id'` by default, or a function `(object) => key`.
+ * With `signal` (true by default), each object and array that changed is signalled once, after the whole merge.
+ * Returns true if anything changed. Other dependencies are left to the model, eg. a model could signal a summary object after a merge that changed something.
+
+The weather example merges each server response with `arrays: 'match'`, and shows which parts of the view update.
 
 ## License
 

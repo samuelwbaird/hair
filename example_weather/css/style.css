@@ -1,0 +1,80 @@
+body {
+    font-family: Georgia, Palatino, serif;
+    margin: 40px auto;
+    max-width: 650px;
+    line-height: 1.6;
+    font-size: 18px;
+    color: #444;
+	padding: 0 10px;
+}
+
+h1 {
+    line-height: 1.2
+}
+
+p.note {
+	font-size: 15px;
+	color: #777;
+}
+
+.status {
+	display: flex;
+	gap: 16px;
+	align-items: center;
+	font-size: 15px;
+	padding: 4px 8px;
+}
+
+.status button {
+	margin-left: auto;
+}
+
+ol.cities li {
+	padding: 4px 8px;
+	border-bottom: 1px solid #ddd;
+}
+
+ol.cities li > span {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.weather {
+	width: 32px;
+}
+
+.name {
+	width: 110px;
+	font-weight: bold;
+}
+
+.country {
+	width: 100px;
+	color: #777;
+}
+
+.temperature {
+	width: 60px;
+	text-align: right;
+}
+
+.trend {
+	width: 24px;
+	text-align: center;
+	font-size: 13px;
+}
+
+.history {
+	font-size: 14px;
+	letter-spacing: 2px;
+	padding: 0 4px;
+}
+
+@keyframes flash {
+	from { background-color: #ffe7a0; }
+	to { background-color: transparent; }
+}
+
+.flash {
+	animation: flash 0.8s ease-out;
+}

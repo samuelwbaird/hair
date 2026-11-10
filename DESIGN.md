@@ -18,7 +18,7 @@ When a choice comes up, prefer the one that is simple to explain and keeps that 
 
  * hair is a single project. The separate hair-mini project is retired.
  * `hair.js` consolidates core and HTML rendering into one file, so it also serves as the single-file, no-build version.
- * Optional modules (forms, tween, PIXI) stay separate, and import `hair.js`.
+ * Optional modules (model, forms, tween, PIXI) stay separate, and import `hair.js`.
 
 ## Layers of state
 
@@ -34,7 +34,7 @@ When a choice comes up, prefer the one that is simple to explain and keeps that 
 
  * **Objects persist and identity matters.** The view attaches to model objects by identity, so update objects in place rather than replacing them. Identity is what makes `watch` / `signal` possible: you can only watch something that persists. It is the link between a separate model and an efficient view, not an optimisation detail.
  * **Objects signal their own changes.** An object signals when anything visible through it changes. If a parent's view depends on a child's state (eg. a count of completed items), the model also signals the parent. Keeping that dependency in the model is a deliberate choice.
- * **Fresh data is merged into the model, not handed to the view.** Data that arrives as new objects (eg. JSON from the network) is merged into existing model objects, matching on an id, so identity is preserved. A helper such as `mergeIntoModel` belongs on the model side, as a documented pattern or optional utility. The merge is also the natural place to signal the objects that changed.
+ * **Fresh data is merged into the model, not handed to the view.** Data that arrives as new objects (eg. JSON from the network) is merged into existing model objects, matching on an id, so identity is preserved. `merge` in `hair.model.js` does this (see Merging data below). The merge is also the natural place to signal the objects that changed.
 
 ## Specs: functions, arrays and elements
 
@@ -92,6 +92,16 @@ Each compose region's RenderContext holds that region's transient state:
  * **`context.set(name, value, signal = false)`.** Setting a value does not signal by default. Most values are set during or just after a render, and signalling there would be circular or cause a second render. Pass `true` when the change should update the view, eg. `context.set('tab', name, true)`.
  * Simple transient state can instead stay entirely on the DOM, managed by listeners, with no re-render.
  * **Inner regions reach outer ones through the model or the context**, not through events going up. An outer region sets a callback with `context.set`, and inner regions call it with `context.get`. There is deliberately no `broadcastUp`: it would be a third way to do the same thing, and events going up are hard to follow.
+
+## Merging data
+
+`merge` in the optional `hair.model.js` brings fresh data into the model without replacing its objects. It doesn't impose a way of structuring the model, it only preserves identity:
+
+ * **Identity is kept everywhere.** Matched objects are merged into, and arrays are updated in place, so watchers and compose regions stay attached. New objects come from `create(data, key, parent)`, so a model made of classes stays made of classes. `create` owns the subtree of the data it receives.
+ * **Merging only adds and updates by default.** Properties missing from the source are never removed. Arrays only lose items or change order with `arrays: 'match'`, which declares that the source arrays are complete lists. `arrays` is a string, leaving room for other ways of ordering merged arrays later.
+ * **Arrays of objects are matched by id, everything else is compared as values.** Matching objects without ids by position is easy to get wrong, so those arrays are replaced when they differ.
+ * **Signals are sent once, after the merge.** Watchers never see a half-merged model, and only objects that actually changed are signalled. Dependencies beyond the changed objects stay the model's job, helped by the boolean result.
+ * **Deliberately left out:** a hook for removed items, and automatic signalling through proxies. Removed items may be referenced elsewhere, and cleaning them up is the model's decision. Proxies would change object identity, and break private fields.
 
 ## Forms
 
