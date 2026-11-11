@@ -17,31 +17,45 @@ export default class FakeWeatherServer {
 			{ id: 'mia', name: 'Miami', country: 'USA', temperature: 30 },
 			{ id: 'acc', name: 'Accra', country: 'Ghana', temperature: 31 },
 		].map((city) => ({ ...city, normal: city.temperature, weather: '☀️', history: [] }));
+		
+		// fill in some starting data
+		this.#updateWeather();
+		for (const city of this.cities) {
+			while (city.history.length < 7) {
+				city.history = [...city.history, city.weather].slice(-7);
+			}
+		}
 	}
 
 	// respond after a short delay, like a network request
 	async fetchHottest () {
-		await new Promise((resolve) => setTimeout(resolve, 150 + (Math.random() * 250)));
-		this.#updateWeather();
+		await new Promise((resolve) => setTimeout(resolve, 100 + (Math.random() * 100)));
+		if (Math.random() < 0.5) {
+			this.#updateWeather();
+		}
+		
 		const hottest = [...this.cities].sort((a, b) => b.temperature - a.temperature).slice(0, 5);
 		// fresh objects in every response, as JSON from a real server would be
 		return JSON.parse(JSON.stringify({
-			time: new Date().toLocaleTimeString(),
+			time: this.updateTime,
 			cities: hottest.map(({ id, name, country, temperature, weather, history }) => ({ id, name, country, temperature, weather, history })),
 		}));
 	}
 
 	#updateWeather () {
+		this.updateTime = new Date().toLocaleTimeString();
+		
 		// a few cities change temperature and weather each update
 		for (let i = 0; i < 2; i++) {
 			const city = this.cities[Math.floor(Math.random() * this.cities.length)];
 			const change = (Math.random() * 4) - 2;
-			city.temperature = Math.round(Math.max(city.normal - 5, Math.min(city.normal + 5, city.temperature + change)) * 10) / 10;
+			city.temperature += (Math.random() -0.5) * 2;
 			city.weather = weatherTypes[Math.floor(Math.random() * weatherTypes.length)];
 		}
+
 		// every city adds its current weather to its history
 		for (const city of this.cities) {
-			city.history = [...city.history, city.weather].slice(-8);
+			city.history = [...city.history, city.weather].slice(-7);
 		}
 	}
 }
